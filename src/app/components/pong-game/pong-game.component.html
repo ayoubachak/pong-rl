@@ -1,0 +1,64 @@
+<div class="game-container">
+  <div class="game-header">
+    <div class="game-controls">
+      <button class="control-btn" (click)="togglePause()" [disabled]="gameState.winner">
+        {{ gameState.isPaused ? '▶️ RESUME' : '⏸️ PAUSE' }}
+      </button>
+      <button class="control-btn" (click)="restartGame()">
+        🔄 RESTART
+      </button>
+      <button class="control-btn exit-btn" (click)="exitToMenu()">
+        🏠 MENU
+      </button>
+    </div>
+    
+    <div class="game-info">
+      <span class="game-mode">{{ gameState.gameMode === 'vs-bot' ? 'VS BOT' : 'VS PLAYER' }}</span>
+      <span class="difficulty" *ngIf="gameState.gameMode === 'vs-bot'">
+        ({{ gameState.difficulty.toUpperCase() }})
+      </span>
+    </div>
+  </div>
+
+  <div class="canvas-container">
+    <canvas 
+      #gameCanvas 
+      class="game-canvas"
+      tabindex="0">
+    </canvas>
+    
+    <div class="game-overlay" *ngIf="gameState.winner">
+      <div class="winner-message">
+        <h2>🎉 {{ gameState.winner }} Wins! 🎉</h2>
+        <div class="final-score">
+          <span>{{ gameState.player1Score }} - {{ gameState.player2Score }}</span>
+        </div>
+        <div class="overlay-controls">
+          <button class="overlay-btn" (click)="restartGame()">
+            Play Again
+          </button>
+          <button class="overlay-btn secondary" (click)="exitToMenu()">
+            Main Menu
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="game-footer">
+    <div class="controls-guide">
+      <div class="player-controls">
+        <h4>Player 1</h4>
+        <p><kbd>W</kbd> / <kbd>S</kbd> to move</p>
+      </div>
+      <div class="player-controls" *ngIf="gameState.gameMode === 'vs-player'">
+        <h4>Player 2</h4>
+        <p><kbd>↑</kbd> / <kbd>↓</kbd> to move</p>
+      </div>
+      <div class="game-controls-guide">
+        <p><kbd>SPACE</kbd> to pause</p>
+        <p><kbd>R</kbd> to restart</p>
+      </div>
+    </div>
+  </div>
+</div>

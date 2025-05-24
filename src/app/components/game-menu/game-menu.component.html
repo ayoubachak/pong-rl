@@ -1,0 +1,81 @@
+<div class="game-menu">
+  <!-- Main Menu -->
+  <div *ngIf="currentView === 'main'" class="menu-container">
+    <h1 class="title">PONG</h1>
+    <div class="menu-buttons">
+      <button class="menu-btn" (click)="startVsBot()">
+        <span class="btn-icon">🤖</span>
+        <span>VS BOT</span>
+      </button>
+      <button class="menu-btn" (click)="startVsPlayer()">
+        <span class="btn-icon">👥</span>
+        <span>VS PLAYER</span>
+      </button>
+      <button class="menu-btn" (click)="openSettings()">
+        <span class="btn-icon">⚙️</span>
+        <span>SETTINGS</span>
+      </button>
+    </div>
+    <div class="controls-info">
+      <p><strong>Player 1:</strong> W/S or ↑/↓</p>
+      <p><strong>Player 2:</strong> Arrow Keys ↑/↓</p>
+    </div>
+  </div>
+
+  <!-- Settings Menu -->
+  <div *ngIf="currentView === 'settings'" class="settings-container">
+    <h2 class="settings-title">SETTINGS</h2>
+    
+    <div class="setting-group">
+      <label>Difficulty</label>
+      <div class="difficulty-buttons">
+        <button 
+          class="difficulty-btn" 
+          [class.active]="settings.difficulty === 'easy'"
+          (click)="updateDifficulty('easy')">
+          Easy
+        </button>
+        <button 
+          class="difficulty-btn" 
+          [class.active]="settings.difficulty === 'medium'"
+          (click)="updateDifficulty('medium')">
+          Medium
+        </button>
+        <button 
+          class="difficulty-btn" 
+          [class.active]="settings.difficulty === 'hard'"
+          (click)="updateDifficulty('hard')">
+          Hard
+        </button>
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <label>Win Score</label>
+      <div class="score-buttons">
+        <button 
+          class="score-btn" 
+          [class.active]="settings.winScore === 3"
+          (click)="settings.winScore = 3">
+          3
+        </button>
+        <button 
+          class="score-btn" 
+          [class.active]="settings.winScore === 5"
+          (click)="settings.winScore = 5">
+          5
+        </button>
+        <button 
+          class="score-btn" 
+          [class.active]="settings.winScore === 10"
+          (click)="settings.winScore = 10">
+          10
+        </button>
+      </div>
+    </div>
+
+    <button class="back-btn" (click)="backToMain()">
+      ← BACK TO MENU
+    </button>
+  </div>
+</div>

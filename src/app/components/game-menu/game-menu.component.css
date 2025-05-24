@@ -1,0 +1,160 @@
+.game-menu {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #0f0f23 0%, #1a1a3a 100%);
+  font-family: 'Courier New', monospace;
+  color: white;
+}
+
+.menu-container, .settings-container {
+  text-align: center;
+  padding: 2rem;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 15px;
+  border: 2px solid #00ff00;
+  box-shadow: 0 0 30px rgba(0, 255, 0, 0.3);
+  min-width: 400px;
+}
+
+.title {
+  font-size: 4rem;
+  font-weight: bold;
+  margin-bottom: 2rem;
+  text-shadow: 0 0 20px #00ff00;
+  color: #00ff00;
+  letter-spacing: 0.2em;
+}
+
+.settings-title {
+  font-size: 2.5rem;
+  margin-bottom: 2rem;
+  color: #00ff00;
+  text-shadow: 0 0 15px #00ff00;
+}
+
+.menu-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.menu-btn {
+  background: transparent;
+  border: 2px solid #00ff00;
+  color: #00ff00;
+  padding: 1rem 2rem;
+  font-size: 1.2rem;
+  font-family: inherit;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.menu-btn:hover {
+  background: #00ff00;
+  color: #0f0f23;
+  box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
+  transform: scale(1.05);
+}
+
+.btn-icon {
+  font-size: 1.5rem;
+}
+
+.controls-info {
+  margin-top: 2rem;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  border: 1px solid rgba(0, 255, 0, 0.3);
+}
+
+.controls-info p {
+  margin: 0.5rem 0;
+  font-size: 0.9rem;
+}
+
+.setting-group {
+  margin-bottom: 2rem;
+}
+
+.setting-group label {
+  display: block;
+  font-size: 1.3rem;
+  margin-bottom: 1rem;
+  color: #00ff00;
+  font-weight: bold;
+}
+
+.difficulty-buttons, .score-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.difficulty-btn, .score-btn {
+  background: transparent;
+  border: 2px solid #666;
+  color: #666;
+  padding: 0.8rem 1.5rem;
+  font-size: 1rem;
+  font-family: inherit;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+  min-width: 80px;
+}
+
+.difficulty-btn:hover, .score-btn:hover {
+  border-color: #00ff00;
+  color: #00ff00;
+}
+
+.difficulty-btn.active, .score-btn.active {
+  background: #00ff00;
+  color: #0f0f23;
+  border-color: #00ff00;
+  box-shadow: 0 0 15px rgba(0, 255, 0, 0.5);
+}
+
+.back-btn {
+  background: transparent;
+  border: 2px solid #ff6b6b;
+  color: #ff6b6b;
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+  font-family: inherit;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  margin-top: 2rem;
+}
+
+.back-btn:hover {
+  background: #ff6b6b;
+  color: white;
+  box-shadow: 0 0 20px rgba(255, 107, 107, 0.5);
+}
+
+@media (max-width: 600px) {
+  .menu-container, .settings-container {
+    min-width: 300px;
+    margin: 1rem;
+  }
+  
+  .title {
+    font-size: 3rem;
+  }
+  
+  .difficulty-buttons, .score-buttons {
+    flex-direction: column;
+    align-items: center;
+  }
+}

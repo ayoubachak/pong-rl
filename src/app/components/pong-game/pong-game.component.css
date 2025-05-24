@@ -1,0 +1,255 @@
+.game-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #0f0f23 0%, #1a1a3a 100%);
+  font-family: 'Courier New', monospace;
+  color: white;
+  padding: 1rem;
+}
+
+.game-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  max-width: 800px;
+  margin-bottom: 1rem;
+}
+
+.game-controls {
+  display: flex;
+  gap: 1rem;
+}
+
+.control-btn {
+  background: transparent;
+  border: 2px solid #00ff00;
+  color: #00ff00;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+}
+
+.control-btn:hover:not(:disabled) {
+  background: #00ff00;
+  color: #0f0f23;
+  box-shadow: 0 0 15px rgba(0, 255, 0, 0.5);
+}
+
+.control-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.exit-btn {
+  border-color: #ff6b6b;
+  color: #ff6b6b;
+}
+
+.exit-btn:hover {
+  background: #ff6b6b;
+  color: white;
+  box-shadow: 0 0 15px rgba(255, 107, 107, 0.5);
+}
+
+.game-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: bold;
+}
+
+.game-mode {
+  color: #00ff00;
+  font-size: 1.1rem;
+}
+
+.difficulty {
+  color: #ffa500;
+  font-size: 0.9rem;
+}
+
+.canvas-container {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.game-canvas {
+  border: 3px solid #00ff00;
+  border-radius: 10px;
+  background: #0f0f23;
+  box-shadow: 0 0 30px rgba(0, 255, 0, 0.3);
+  cursor: none;
+}
+
+.game-canvas:focus {
+  outline: none;
+  box-shadow: 0 0 40px rgba(0, 255, 0, 0.5);
+}
+
+.game-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 10px;
+}
+
+.winner-message {
+  text-align: center;
+  background: rgba(0, 255, 0, 0.1);
+  border: 2px solid #00ff00;
+  border-radius: 15px;
+  padding: 2rem;
+  box-shadow: 0 0 30px rgba(0, 255, 0, 0.3);
+}
+
+.winner-message h2 {
+  color: #00ff00;
+  margin: 0 0 1rem 0;
+  font-size: 2rem;
+  text-shadow: 0 0 15px #00ff00;
+}
+
+.final-score {
+  font-size: 2.5rem;
+  font-weight: bold;
+  color: #00ff00;
+  margin: 1rem 0 2rem 0;
+  text-shadow: 0 0 10px #00ff00;
+}
+
+.overlay-controls {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.overlay-btn {
+  background: transparent;
+  border: 2px solid #00ff00;
+  color: #00ff00;
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+  font-family: inherit;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  font-weight: bold;
+}
+
+.overlay-btn:hover {
+  background: #00ff00;
+  color: #0f0f23;
+  box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
+  transform: scale(1.05);
+}
+
+.overlay-btn.secondary {
+  border-color: #666;
+  color: #666;
+}
+
+.overlay-btn.secondary:hover {
+  background: #666;
+  color: white;
+  box-shadow: 0 0 20px rgba(102, 102, 102, 0.5);
+}
+
+.game-footer {
+  width: 100%;
+  max-width: 800px;
+}
+
+.controls-guide {
+  display: flex;
+  justify-content: center;
+  gap: 3rem;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 10px;
+  padding: 1rem;
+  border: 1px solid rgba(0, 255, 0, 0.3);
+}
+
+.player-controls, .game-controls-guide {
+  text-align: center;
+}
+
+.player-controls h4, .game-controls-guide h4 {
+  color: #00ff00;
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+}
+
+.player-controls p, .game-controls-guide p {
+  margin: 0.2rem 0;
+  font-size: 0.9rem;
+  color: #ccc;
+}
+
+kbd {
+  background: #333;
+  border: 1px solid #555;
+  border-radius: 3px;
+  padding: 0.2rem 0.5rem;
+  font-family: inherit;
+  font-size: 0.8rem;
+  color: #00ff00;
+  margin: 0 0.1rem;
+}
+
+@media (max-width: 900px) {
+  .game-canvas {
+    width: 90vw;
+    height: calc(90vw * 0.5);
+  }
+  
+  .game-header {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: center;
+  }
+  
+  .controls-guide {
+    flex-direction: column;
+    gap: 1rem;
+    text-align: center;
+  }
+  
+  .overlay-controls {
+    flex-direction: column;
+    align-items: center;
+  }
+}
+
+@media (max-width: 600px) {
+  .game-controls {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  
+  .control-btn {
+    padding: 0.5rem;
+    font-size: 0.8rem;
+  }
+  
+  .winner-message h2 {
+    font-size: 1.5rem;
+  }
+  
+  .final-score {
+    font-size: 2rem;
+  }
+}
