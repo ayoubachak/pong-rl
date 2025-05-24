@@ -2,7 +2,8 @@
   <!-- Game Menu -->
   <app-game-menu
     *ngIf="currentView === 'menu'"
-    (startGame)="onStartGame($event)">
+    (startGame)="onStartGame($event)"
+    (watchAILearn)="onWatchAILearn()">
   </app-game-menu>
 
   <!-- Pong Game -->
@@ -11,4 +12,10 @@
     [settings]="gameSettings"
     (gameEnded)="onGameEnded()">
   </app-pong-game>
+
+  <!-- AI Learning Mode -->
+  <app-ai-learning
+    *ngIf="currentView === 'ai-learning'"
+    (backToMenu)="onBackToMenu()">
+  </app-ai-learning>
 </div>

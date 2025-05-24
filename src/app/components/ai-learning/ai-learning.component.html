@@ -1,0 +1,221 @@
+<div class="ai-learning-container">
+  <!-- Header with controls -->
+  <div class="header-section">
+    <h1 class="title">🧠 Watch AIs Learn Pong</h1>
+    <div class="control-panel">
+      <button 
+        class="control-btn start-btn" 
+        (click)="startTraining()" 
+        [disabled]="isTraining">
+        <span *ngIf="!isTraining">🚀 Start Training</span>
+        <span *ngIf="isTraining">🔄 Training...</span>
+      </button>
+      <button 
+        class="control-btn stop-btn" 
+        (click)="stopTraining()" 
+        [disabled]="!isTraining">
+        ⏹️ Stop Training
+      </button>
+    </div>
+  </div>
+
+  <!-- Main content area -->
+  <div class="main-content">
+    <!-- Game canvas section -->
+    <div class="game-section">
+      <div class="canvas-container">
+        <canvas #gameCanvas class="game-canvas"></canvas>
+        
+        <!-- AI Agent Info Overlays -->
+        <div class="agent-info agent1-info" *ngIf="agent1">
+          <h3>{{ agent1.name }}</h3>
+          <div class="agent-stats">
+            <div class="stat">
+              <span class="stat-label">Score:</span>
+              <span class="stat-value">{{ agent1.score }}</span>
+            </div>
+            <div class="stat">
+              <span class="stat-label">Win Rate:</span>
+              <span class="stat-value">{{ stats.agent1WinRate.toFixed(1) }}%</span>
+            </div>
+            <div class="stat">
+              <span class="stat-label">Exploration (ε):</span>
+              <span class="stat-value">{{ agent1.epsilon.toFixed(3) }}</span>
+            </div>
+            <div class="stat">
+              <span class="stat-label">Avg Reward:</span>
+              <span class="stat-value">{{ stats.avgRewardAgent1.toFixed(2) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="agent-info agent2-info" *ngIf="agent2">
+          <h3>{{ agent2.name }}</h3>
+          <div class="agent-stats">
+            <div class="stat">
+              <span class="stat-label">Score:</span>
+              <span class="stat-value">{{ agent2.score }}</span>
+            </div>
+            <div class="stat">
+              <span class="stat-label">Win Rate:</span>
+              <span class="stat-value">{{ stats.agent2WinRate.toFixed(1) }}%</span>
+            </div>
+            <div class="stat">
+              <span class="stat-label">Exploration (ε):</span>
+              <span class="stat-value">{{ agent2.epsilon.toFixed(3) }}</span>
+            </div>
+            <div class="stat">
+              <span class="stat-label">Avg Reward:</span>
+              <span class="stat-value">{{ stats.avgRewardAgent2.toFixed(2) }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Game Statistics -->
+      <div class="game-stats">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <h4>📊 Training Progress</h4>
+            <div class="stat-row">
+              <span>Games Played:</span>
+              <span class="highlight">{{ stats.totalGames }}</span>
+            </div>
+            <div class="stat-row">
+              <span>Current Game:</span>
+              <span class="highlight">{{ gameNumber }}</span>
+            </div>
+            <div class="stat-row">
+              <span>Episodes:</span>
+              <span class="highlight">{{ episode }}</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <h4>🏆 Competition Stats</h4>
+            <div class="stat-row">
+              <span style="color: #ff4444;">Red AI Wins:</span>
+              <span class="highlight">{{ stats.agent1Wins }}</span>
+            </div>
+            <div class="stat-row">
+              <span style="color: #4444ff;">Blue AI Wins:</span>
+              <span class="highlight">{{ stats.agent2Wins }}</span>
+            </div>
+            <div class="stat-row">
+              <span>Current Leader:</span>
+              <span class="highlight" [style.color]="stats.agent1WinRate > stats.agent2WinRate ? '#ff4444' : '#4444ff'">
+                {{ stats.agent1WinRate > stats.agent2WinRate ? 'Red AI' : 'Blue AI' }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Configuration panel -->
+    <div class="config-section">
+      <h3>⚙️ Learning Configuration</h3>
+      
+      <div class="config-group">
+        <label for="learningRate">Learning Rate</label>
+        <input 
+          type="range" 
+          id="learningRate"
+          min="0.0001" 
+          max="0.01" 
+          step="0.0001"
+          [value]="config.learningRate"
+          (input)="updateLearningRate(+$any($event.target).value)">
+        <span class="config-value">{{ config.learningRate.toFixed(4) }}</span>
+      </div>
+
+      <div class="config-group">
+        <label for="gameSpeed">Game Speed</label>
+        <input 
+          type="range" 
+          id="gameSpeed"
+          min="0.1" 
+          max="5" 
+          step="0.1"
+          [value]="config.gameSpeed"
+          (input)="updateGameSpeed(+$any($event.target).value)">
+        <span class="config-value">{{ config.gameSpeed.toFixed(1) }}x</span>
+      </div>
+
+      <div class="config-group">
+        <label for="batchSize">Batch Size</label>
+        <input 
+          type="range" 
+          id="batchSize"
+          min="8" 
+          max="128" 
+          step="8"
+          [value]="config.batchSize"
+          (input)="updateBatchSize(+$any($event.target).value)">
+        <span class="config-value">{{ config.batchSize }}</span>
+      </div>
+
+      <div class="config-info">
+        <h4>🧠 Neural Network Architecture</h4>
+        <div class="network-info">
+          <div class="layer">Input Layer: 8 neurons</div>
+          <div class="layer">Hidden Layer 1: 128 neurons (ReLU + Dropout)</div>
+          <div class="layer">Hidden Layer 2: 64 neurons (ReLU + Dropout)</div>
+          <div class="layer">Hidden Layer 3: 32 neurons (ReLU)</div>
+          <div class="layer">Output Layer: 3 neurons (Q-values)</div>
+        </div>
+        
+        <div class="learning-info">
+          <h4>📈 Learning Algorithm</h4>
+          <p><strong>Deep Q-Network (DQN)</strong></p>
+          <ul>
+            <li>Experience Replay Memory</li>
+            <li>Target Network Updates</li>
+            <li>Epsilon-Greedy Exploration</li>
+            <li>Adam Optimizer</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Neural Network Visualization -->
+  <div class="visualization-section">
+    <h3>📊 Real-time Neural Network Visualization</h3>
+    <div #networkVis class="network-visualization">
+      <!-- TensorFlow.js Visor will render here -->
+    </div>
+    
+    <div class="learning-explanation">
+      <h4>🎯 What You're Watching</h4>
+      <div class="explanation-grid">
+        <div class="explanation-card">
+          <h5>🔴 Red AI vs 🔵 Blue AI</h5>
+          <p>Two independent neural networks learning to play Pong simultaneously. Each AI starts with random weights and learns through trial and error.</p>
+        </div>
+        
+        <div class="explanation-card">
+          <h5>🎲 Exploration vs Exploitation</h5>
+          <p>The ε (epsilon) value shows exploration rate. High ε = more random actions for learning. As training progresses, ε decreases and AIs rely more on learned strategies.</p>
+        </div>
+        
+        <div class="explanation-card">
+          <h5>🧠 Deep Q-Learning</h5>
+          <p>Each AI uses a neural network to predict Q-values (quality scores) for actions: move up, stay, or move down. The network learns which actions lead to better rewards.</p>
+        </div>
+        
+        <div class="explanation-card">
+          <h5>📈 Learning Progress</h5>
+          <p>Watch win rates evolve over time. Initially random (~50%), but as learning progresses, one AI may develop superior strategies and dominate.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Back to menu button -->
+  <div class="footer-section">
+    <button class="back-btn" (click)="$event.preventDefault(); goBack()">
+      ← Back to Menu
+    </button>
+  </div>
+</div>

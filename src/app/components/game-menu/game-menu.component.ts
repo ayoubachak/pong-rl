@@ -1,9 +1,14 @@
 import { Component, EventEmitter, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+
+type GameMode = 'vs-bot' | 'vs-player';
+type Difficulty = 'easy' | 'medium' | 'hard';
+type CurrentView = 'main' | 'settings';
 
 export interface GameSettings {
-  gameMode: 'vs-bot' | 'vs-player';
-  difficulty: 'easy' | 'medium' | 'hard';
+  gameMode: GameMode;
+  difficulty: Difficulty;
   ballSpeed: number;
   paddleSpeed: number;
   winScore: number;
@@ -12,17 +17,17 @@ export interface GameSettings {
 @Component({
   selector: 'app-game-menu',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   templateUrl: './game-menu.component.html',
   styleUrls: ['./game-menu.component.css']
 })
 export class GameMenuComponent {
   @Output() startGame = new EventEmitter<GameSettings>();
-  @Output() showSettings = new EventEmitter<void>();
+  @Output() watchAILearn = new EventEmitter<void>();
 
-  currentView: 'main' | 'settings' = 'main';
+  currentView: CurrentView = 'main';
   
-  settings: GameSettings = {
+  gameSettings: GameSettings = {
     gameMode: 'vs-bot',
     difficulty: 'medium',
     ballSpeed: 5,
@@ -30,14 +35,21 @@ export class GameMenuComponent {
     winScore: 5
   };
 
+  // Legacy settings property for existing template
+  settings = {
+    difficulty: 'medium' as Difficulty,
+    winScore: 5
+  };
+
   startVsBot() {
-    this.settings.gameMode = 'vs-bot';
-    this.startGame.emit(this.settings);
+    this.gameSettings.gameMode = 'vs-bot';
+    this.gameSettings.difficulty = this.settings.difficulty;
+    this.gameSettings.winScore = this.settings.winScore;
+    this.startGame.emit(this.gameSettings);
   }
 
-  startVsPlayer() {
-    this.settings.gameMode = 'vs-player';
-    this.startGame.emit(this.settings);
+  onWatchAILearn() {
+    this.watchAILearn.emit();
   }
 
   openSettings() {
@@ -48,22 +60,16 @@ export class GameMenuComponent {
     this.currentView = 'main';
   }
 
-  updateDifficulty(difficulty: 'easy' | 'medium' | 'hard') {
+  updateDifficulty(difficulty: Difficulty) {
     this.settings.difficulty = difficulty;
-    // Adjust speeds based on difficulty
-    switch (difficulty) {
-      case 'easy':
-        this.settings.ballSpeed = 3;
-        this.settings.paddleSpeed = 10;
-        break;
-      case 'medium':
-        this.settings.ballSpeed = 5;
-        this.settings.paddleSpeed = 8;
-        break;
-      case 'hard':
-        this.settings.ballSpeed = 7;
-        this.settings.paddleSpeed = 6;
-        break;
-    }
+    this.gameSettings.difficulty = difficulty;
+  }
+
+  onStartGame() {
+    this.startGame.emit(this.gameSettings);
+  }
+
+  toggleSettings() {
+    this.currentView = this.currentView === 'main' ? 'settings' : 'main';
   }
 }

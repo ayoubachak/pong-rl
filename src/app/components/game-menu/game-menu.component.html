@@ -1,24 +1,103 @@
 <div class="game-menu">
   <!-- Main Menu -->
   <div *ngIf="currentView === 'main'" class="menu-container">
-    <h1 class="title">PONG</h1>
-    <div class="menu-buttons">
-      <button class="menu-btn" (click)="startVsBot()">
-        <span class="btn-icon">🤖</span>
-        <span>VS BOT</span>
+    <div class="game-title">
+      <h1>🏓 PONG</h1>
+      <p class="subtitle">The Classic Game Reimagined</p>
+    </div>
+
+    <div class="menu-options">
+      <button class="menu-btn primary-btn" (click)="startVsBot()">
+        🎮 Play Game
       </button>
-      <button class="menu-btn" (click)="startVsPlayer()">
-        <span class="btn-icon">👥</span>
-        <span>VS PLAYER</span>
+      
+      <button class="menu-btn ai-btn" (click)="onWatchAILearn()">
+        🧠 Watch AIs Learn
       </button>
-      <button class="menu-btn" (click)="openSettings()">
-        <span class="btn-icon">⚙️</span>
-        <span>SETTINGS</span>
+      
+      <button class="menu-btn secondary-btn" (click)="openSettings()">
+        ⚙️ Game Settings
       </button>
     </div>
-    <div class="controls-info">
-      <p><strong>Player 1:</strong> W/S or ↑/↓</p>
-      <p><strong>Player 2:</strong> Arrow Keys ↑/↓</p>
+
+    <div class="game-info">
+      <h3>🎯 How to Play</h3>
+      <div class="controls-info">
+        <div class="control-item">
+          <span class="key">W / S</span>
+          <span class="description">Player 1 - Move Up/Down</span>
+        </div>
+        <div class="control-item">
+          <span class="key">↑ / ↓</span>
+          <span class="description">Player 2 - Move Up/Down</span>
+        </div>
+        <div class="control-item">
+          <span class="key">SPACE</span>
+          <span class="description">Pause/Resume Game</span>
+        </div>
+        <div class="control-item">
+          <span class="key">R</span>
+          <span class="description">Restart Game</span>
+        </div>
+      </div>
+      
+      <div class="ai-learn-info">
+        <h4>🧠 AI Learning Mode</h4>
+        <p>Watch two neural networks compete and learn to play Pong in real-time using Deep Q-Learning (DQN). See their strategies evolve as they train!</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Panel -->
+  <div class="settings-panel" *ngIf="currentView === 'settings'">
+    <h3>Game Configuration</h3>
+    
+    <div class="settings-grid">
+      <div class="setting-group">
+        <label for="gameMode">Game Mode</label>
+        <select id="gameMode" [(ngModel)]="gameSettings.gameMode">
+          <option value="vs-bot">🤖 VS Computer</option>
+          <option value="vs-player">👥 VS Player</option>
+        </select>
+      </div>
+
+      <div class="setting-group" *ngIf="gameSettings.gameMode === 'vs-bot'">
+        <label for="difficulty">Difficulty</label>
+        <select id="difficulty" [(ngModel)]="gameSettings.difficulty">
+          <option value="easy">😊 Easy</option>
+          <option value="medium">😐 Medium</option>
+          <option value="hard">😤 Hard</option>
+        </select>
+      </div>
+
+      <div class="setting-group">
+        <label for="ballSpeed">Ball Speed: {{ gameSettings.ballSpeed }}</label>
+        <input 
+          type="range" 
+          id="ballSpeed"
+          min="3" 
+          max="10" 
+          [(ngModel)]="gameSettings.ballSpeed">
+      </div>
+
+      <div class="setting-group">
+        <label for="paddleSpeed">Paddle Speed: {{ gameSettings.paddleSpeed }}</label>
+        <input 
+          type="range" 
+          id="paddleSpeed"
+          min="5" 
+          max="15" 
+          [(ngModel)]="gameSettings.paddleSpeed">
+      </div>
+
+      <div class="setting-group">
+        <label for="winScore">Points to Win</label>
+        <select id="winScore" [(ngModel)]="gameSettings.winScore">
+          <option [value]="3">3 Points</option>
+          <option [value]="5">5 Points</option>
+          <option [value]="10">10 Points</option>
+        </select>
+      </div>
     </div>
   </div>
 
