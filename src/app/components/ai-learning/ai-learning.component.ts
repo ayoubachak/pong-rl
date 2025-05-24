@@ -80,7 +80,7 @@ export class AiLearningComponent implements OnInit, OnDestroy, AfterViewInit {
 
   // Game configuration
   canvas = { width: 800, height: 400 };
-  ball = { x: 400, y: 200, dx: 4, dy: 3, radius: 8 };
+  ball = { x: 400, y: 200, dx: 6, dy: 4, radius: 8 }; // Increased speed from 4,3 to 6,4
   paddle1 = { x: 20, y: 175, width: 10, height: 80 };
   paddle2 = { x: 770, y: 175, width: 10, height: 80 };
   
@@ -123,7 +123,7 @@ export class AiLearningComponent implements OnInit, OnDestroy, AfterViewInit {
   private readonly rewardHistory: { agent1: number[], agent2: number[] } = { agent1: [], agent2: [] };
   private readonly winRateHistory: { agent1: number[], agent2: number[] } = { agent1: [], agent2: [] };
 
-  private networkSvg: any;
+  private readonly networkSvg: any;
   private readonly networkConfig = {
     layers: [8, 128, 64, 32, 3],
     nodeRadius: 8,
@@ -1019,10 +1019,10 @@ export class AiLearningComponent implements OnInit, OnDestroy, AfterViewInit {
       .enter()
       .append('line')
       .attr('class', `network-link ${agentId}-link`)
-      .attr('x1', (d: any) => nodes.find(n => n.id === d.source)?.x || 0)
-      .attr('y1', (d: any) => nodes.find(n => n.id === d.source)?.y || 0)
-      .attr('x2', (d: any) => nodes.find(n => n.id === d.target)?.x || 0)
-      .attr('y2', (d: any) => nodes.find(n => n.id === d.target)?.y || 0)
+      .attr('x1', (d: any) => nodes.find(n => n.id === d.source)?.x ?? 0)
+      .attr('y1', (d: any) => nodes.find(n => n.id === d.source)?.y ?? 0)
+      .attr('x2', (d: any) => nodes.find(n => n.id === d.target)?.x ?? 0)
+      .attr('y2', (d: any) => nodes.find(n => n.id === d.target)?.y ?? 0)
       .attr('stroke', '#666')
       .attr('stroke-width', 1)
       .attr('stroke-opacity', 0.2);
