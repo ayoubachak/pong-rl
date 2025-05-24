@@ -177,16 +177,16 @@ export class PongGameComponent implements OnInit, OnDestroy {
   }
 
   private updatePaddles() {
-    // Player 1 controls (W/S or Arrow Up/Down)
-    if (this.keysPressed.has('w') || this.keysPressed.has('W') || this.keysPressed.has('ArrowUp')) {
+    // Player 1 controls (WASD)
+    if (this.keysPressed.has('w') || this.keysPressed.has('W')) {
       this.paddle1.y = Math.max(0, this.paddle1.y - this.paddle1.speed);
     }
-    if (this.keysPressed.has('s') || this.keysPressed.has('S') || this.keysPressed.has('ArrowDown')) {
+    if (this.keysPressed.has('s') || this.keysPressed.has('S')) {
       this.paddle1.y = Math.min(this.canvas.height - this.paddle1.height, this.paddle1.y + this.paddle1.speed);
     }
 
     if (this.gameState.gameMode === 'vs-player') {
-      // Player 2 controls (Arrow keys only for player 2)
+      // Player 2 controls (Arrow keys)
       if (this.keysPressed.has('ArrowUp')) {
         this.paddle2.y = Math.max(0, this.paddle2.y - this.paddle2.speed);
       }
@@ -319,6 +319,19 @@ export class PongGameComponent implements OnInit, OnDestroy {
     this.ctx.textAlign = 'center';
     this.ctx.fillText(this.gameState.player1Score.toString(), this.canvas.width / 4, 60);
     this.ctx.fillText(this.gameState.player2Score.toString(), (3 * this.canvas.width) / 4, 60);
+
+    // Draw player labels and controls
+    this.ctx.font = '14px Courier New';
+    this.ctx.fillStyle = '#00ff00';
+    this.ctx.textAlign = 'center';
+    
+    if (this.gameState.gameMode === 'vs-player') {
+      this.ctx.fillText('Player 1 (W/S)', this.canvas.width / 4, this.canvas.height - 30);
+      this.ctx.fillText('Player 2 (↑/↓)', (3 * this.canvas.width) / 4, this.canvas.height - 30);
+    } else {
+      this.ctx.fillText('Player (W/S)', this.canvas.width / 4, this.canvas.height - 30);
+      this.ctx.fillText('Bot', (3 * this.canvas.width) / 4, this.canvas.height - 30);
+    }
 
     // Draw game info
     if (this.gameState.isPaused) {

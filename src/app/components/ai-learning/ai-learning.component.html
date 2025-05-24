@@ -1,179 +1,212 @@
 <div class="ai-learning-container">
-  <!-- Header with controls -->
+  <!-- Header Section -->
   <div class="header-section">
-    <h1 class="title">🧠 Watch AIs Learn Pong</h1>
-    <div class="control-panel">
-      <button 
-        class="control-btn start-btn" 
-        (click)="startTraining()" 
-        [disabled]="isTraining">
-        <span *ngIf="!isTraining">🚀 Start Training</span>
-        <span *ngIf="isTraining">🔄 Training...</span>
-      </button>
-      <button 
-        class="control-btn stop-btn" 
-        (click)="stopTraining()" 
-        [disabled]="!isTraining">
-        ⏹️ Stop Training
-      </button>
+    <h1 class="title">🧠 AI LEARNING LAB</h1>
+    <button class="back-btn" (click)="goBackToMenu()">
+      <span class="back-icon">←</span> BACK TO MENU
+    </button>
+  </div>
+
+  <!-- Control Panel -->
+  <div class="control-panel">
+    <div class="control-section">
+      <h3>🎮 TRAINING CONTROLS</h3>
+      <div class="controls-grid">
+        <div class="control-group">
+          <label for="learning-rate">Learning Rate</label>
+          <input type="range" 
+                 id="learning-rate"
+                 min="0.0001" 
+                 max="0.01" 
+                 step="0.0001" 
+                 [value]="config.learningRate"
+                 (input)="updateLearningRate(+$any($event.target).value)"
+                 class="slider">
+          <span class="value-display">{{ config.learningRate.toFixed(4) }}</span>
+        </div>
+        
+        <div class="control-group">
+          <label for="game-speed">Game Speed</label>
+          <input type="range" 
+                 id="game-speed"
+                 min="1" 
+                 max="10" 
+                 step="1" 
+                 [value]="config.gameSpeed"
+                 (input)="updateGameSpeed(+$any($event.target).value)"
+                 class="slider">
+          <span class="value-display">{{ config.gameSpeed }}x</span>
+        </div>
+        
+        <div class="control-group">
+          <label for="epsilon-decay">Epsilon Decay</label>
+          <input type="range" 
+                 id="epsilon-decay"
+                 min="0.99" 
+                 max="0.9999" 
+                 step="0.0001" 
+                 [value]="config.epsilonDecay"
+                 (input)="updateEpsilonDecay(+$any($event.target).value)"
+                 class="slider">
+          <span class="value-display">{{ config.epsilonDecay.toFixed(4) }}</span>
+        </div>
+        
+        <div class="control-group">
+          <label for="episodes">Episodes</label>
+          <input type="number" 
+                 id="episodes"
+                 min="1" 
+                 max="10000" 
+                 [(ngModel)]="config.episodes"
+                 class="number-input">
+        </div>
+      </div>
+      
+      <div class="action-buttons">
+        <button class="btn btn-primary" 
+                (click)="startTraining()" 
+                [disabled]="isTraining">
+          {{ isTraining ? '🔄 TRAINING...' : '🚀 START TRAINING' }}
+        </button>
+        
+        <button class="btn btn-secondary" 
+                (click)="stopTraining()" 
+                [disabled]="!isTraining">
+          ⏹️ STOP
+        </button>
+        
+        <button class="btn btn-warning" 
+                (click)="resetTraining()">
+          🔄 RESET
+        </button>
+      </div>
+    </div>
+
+    <!-- Model Management -->
+    <div class="control-section">
+      <h3>💾 MODEL MANAGEMENT</h3>
+      <div class="model-controls">
+        <div class="export-controls">
+          <button class="btn btn-success" (click)="exportModel('agent1')">
+            📤 Export Agent 1
+          </button>
+          <button class="btn btn-success" (click)="exportModel('agent2')">
+            📤 Export Agent 2
+          </button>
+        </div>
+        
+        <div class="import-controls">
+          <label class="file-input-label">
+            📥 Import Agent 1 Model
+            <input type="file" 
+                   accept=".json"
+                   (change)="importModel('agent1', $any($event.target).files[0])"
+                   class="file-input">
+          </label>
+          
+          <label class="file-input-label">
+            📥 Import Agent 2 Model
+            <input type="file" 
+                   accept=".json"
+                   (change)="importModel('agent2', $any($event.target).files[0])"
+                   class="file-input">
+          </label>
+        </div>
+      </div>
     </div>
   </div>
 
-  <!-- Main content area -->
+  <!-- Main Content Area -->
   <div class="main-content">
-    <!-- Game canvas section -->
+    <!-- Game Visualization -->
     <div class="game-section">
-      <div class="canvas-container">
-        <canvas #gameCanvas class="game-canvas"></canvas>
-        
-        <!-- AI Agent Info Overlays -->
-        <div class="agent-info agent1-info" *ngIf="agent1">
-          <h3>{{ agent1.name }}</h3>
-          <div class="agent-stats">
-            <div class="stat">
-              <span class="stat-label">Score:</span>
-              <span class="stat-value">{{ agent1.score }}</span>
-            </div>
-            <div class="stat">
-              <span class="stat-label">Win Rate:</span>
-              <span class="stat-value">{{ stats.agent1WinRate.toFixed(1) }}%</span>
-            </div>
-            <div class="stat">
-              <span class="stat-label">Exploration (ε):</span>
-              <span class="stat-value">{{ agent1.epsilon.toFixed(3) }}</span>
-            </div>
-            <div class="stat">
-              <span class="stat-label">Avg Reward:</span>
-              <span class="stat-value">{{ stats.avgRewardAgent1.toFixed(2) }}</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="agent-info agent2-info" *ngIf="agent2">
-          <h3>{{ agent2.name }}</h3>
-          <div class="agent-stats">
-            <div class="stat">
-              <span class="stat-label">Score:</span>
-              <span class="stat-value">{{ agent2.score }}</span>
-            </div>
-            <div class="stat">
-              <span class="stat-label">Win Rate:</span>
-              <span class="stat-value">{{ stats.agent2WinRate.toFixed(1) }}%</span>
-            </div>
-            <div class="stat">
-              <span class="stat-label">Exploration (ε):</span>
-              <span class="stat-value">{{ agent2.epsilon.toFixed(3) }}</span>
-            </div>
-            <div class="stat">
-              <span class="stat-label">Avg Reward:</span>
-              <span class="stat-value">{{ stats.avgRewardAgent2.toFixed(2) }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Game Statistics -->
-      <div class="game-stats">
-        <div class="stats-grid">
-          <div class="stat-card">
-            <h4>📊 Training Progress</h4>
-            <div class="stat-row">
-              <span>Games Played:</span>
-              <span class="highlight">{{ stats.totalGames }}</span>
-            </div>
-            <div class="stat-row">
-              <span>Current Game:</span>
-              <span class="highlight">{{ gameNumber }}</span>
-            </div>
-            <div class="stat-row">
-              <span>Episodes:</span>
-              <span class="highlight">{{ episode }}</span>
-            </div>
-          </div>
-
-          <div class="stat-card">
-            <h4>🏆 Competition Stats</h4>
-            <div class="stat-row">
-              <span style="color: #ff4444;">Red AI Wins:</span>
-              <span class="highlight">{{ stats.agent1Wins }}</span>
-            </div>
-            <div class="stat-row">
-              <span style="color: #4444ff;">Blue AI Wins:</span>
-              <span class="highlight">{{ stats.agent2Wins }}</span>
-            </div>
-            <div class="stat-row">
-              <span>Current Leader:</span>
-              <span class="highlight" [style.color]="stats.agent1WinRate > stats.agent2WinRate ? '#ff4444' : '#4444ff'">
-                {{ stats.agent1WinRate > stats.agent2WinRate ? 'Red AI' : 'Blue AI' }}
-              </span>
-            </div>
+      <h3>🎯 TRAINING ARENA</h3>
+      <div class="game-container">
+        <canvas #gameCanvas width="600" height="400" class="game-canvas"></canvas>
+        <div class="game-overlay" *ngIf="!isTraining && gameNumber === 0">
+          <div class="overlay-content">
+            <h4>🤖 AI vs AI Training</h4>
+            <p>Watch two neural networks learn to play Pong!</p>
+            <p>Click "START TRAINING" to begin</p>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Configuration panel -->
-    <div class="config-section">
-      <h3>⚙️ Learning Configuration</h3>
-      
-      <div class="config-group">
-        <label for="learningRate">Learning Rate</label>
-        <input 
-          type="range" 
-          id="learningRate"
-          min="0.0001" 
-          max="0.01" 
-          step="0.0001"
-          [value]="config.learningRate"
-          (input)="updateLearningRate(+$any($event.target).value)">
-        <span class="config-value">{{ config.learningRate.toFixed(4) }}</span>
-      </div>
-
-      <div class="config-group">
-        <label for="gameSpeed">Game Speed</label>
-        <input 
-          type="range" 
-          id="gameSpeed"
-          min="0.1" 
-          max="5" 
-          step="0.1"
-          [value]="config.gameSpeed"
-          (input)="updateGameSpeed(+$any($event.target).value)">
-        <span class="config-value">{{ config.gameSpeed.toFixed(1) }}x</span>
-      </div>
-
-      <div class="config-group">
-        <label for="batchSize">Batch Size</label>
-        <input 
-          type="range" 
-          id="batchSize"
-          min="8" 
-          max="128" 
-          step="8"
-          [value]="config.batchSize"
-          (input)="updateBatchSize(+$any($event.target).value)">
-        <span class="config-value">{{ config.batchSize }}</span>
-      </div>
-
-      <div class="config-info">
-        <h4>🧠 Neural Network Architecture</h4>
-        <div class="network-info">
-          <div class="layer">Input Layer: 8 neurons</div>
-          <div class="layer">Hidden Layer 1: 128 neurons (ReLU + Dropout)</div>
-          <div class="layer">Hidden Layer 2: 64 neurons (ReLU + Dropout)</div>
-          <div class="layer">Hidden Layer 3: 32 neurons (ReLU)</div>
-          <div class="layer">Output Layer: 3 neurons (Q-values)</div>
+    <!-- Statistics Dashboard -->
+    <div class="stats-section">
+      <h3>📊 PERFORMANCE METRICS</h3>
+      <div class="stats-grid">
+        <!-- Agent 1 Stats -->
+        <div class="agent-stats" *ngIf="getAgent1Stats() as stats">
+          <h4 class="agent-title">🔴 {{ stats.name }}</h4>
+          <div class="stat-item">
+            <span class="stat-label">Wins:</span>
+            <span class="stat-value">{{ stats.wins }}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Win Rate:</span>
+            <span class="stat-value">{{ stats.winRate }}%</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Avg Reward:</span>
+            <span class="stat-value">{{ stats.avgReward }}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Exploration:</span>
+            <span class="stat-value">{{ stats.epsilon }}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Games:</span>
+            <span class="stat-value">{{ stats.gamesPlayed }}</span>
+          </div>
         </div>
-        
-        <div class="learning-info">
-          <h4>📈 Learning Algorithm</h4>
-          <p><strong>Deep Q-Network (DQN)</strong></p>
-          <ul>
-            <li>Experience Replay Memory</li>
-            <li>Target Network Updates</li>
-            <li>Epsilon-Greedy Exploration</li>
-            <li>Adam Optimizer</li>
-          </ul>
+
+        <!-- Agent 2 Stats -->
+        <div class="agent-stats" *ngIf="getAgent2Stats() as stats">
+          <h4 class="agent-title">🔵 {{ stats.name }}</h4>
+          <div class="stat-item">
+            <span class="stat-label">Wins:</span>
+            <span class="stat-value">{{ stats.wins }}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Win Rate:</span>
+            <span class="stat-value">{{ stats.winRate }}%</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Avg Reward:</span>
+            <span class="stat-value">{{ stats.avgReward }}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Exploration:</span>
+            <span class="stat-value">{{ stats.epsilon }}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Games:</span>
+            <span class="stat-value">{{ stats.gamesPlayed }}</span>
+          </div>
+        </div>
+
+        <!-- Overall Stats -->
+        <div class="overall-stats">
+          <h4 class="stats-title">🏆 OVERALL</h4>
+          <div class="stat-item">
+            <span class="stat-label">Total Games:</span>
+            <span class="stat-value">{{ stats.totalGames }}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Current Episode:</span>
+            <span class="stat-value">{{ episode }}/{{ config.episodes }}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Training Progress:</span>
+            <div class="progress-bar">
+              <div class="progress-fill" 
+                   [style.width.%]="(episode / config.episodes) * 100">
+              </div>
+            </div>
+            <span class="stat-value">{{ ((episode / config.episodes) * 100).toFixed(1) }}%</span>
+          </div>
         </div>
       </div>
     </div>
@@ -181,41 +214,54 @@
 
   <!-- Neural Network Visualization -->
   <div class="visualization-section">
-    <h3>📊 Real-time Neural Network Visualization</h3>
-    <div #networkVis class="network-visualization">
-      <!-- TensorFlow.js Visor will render here -->
+    <h3>🧠 NEURAL NETWORK VISUALIZATION</h3>
+    <div class="network-container">
+      <div class="network-info">
+        <p>Watch the neural network in action! Nodes light up based on activation levels.</p>
+        <div class="legend">
+          <div class="legend-item">
+            <div class="legend-color" style="background: #440154;"></div>
+            <span>Low Activation</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-color" style="background: #31688e;"></div>
+            <span>Medium Activation</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-color" style="background: #35b779;"></div>
+            <span>High Activation</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-color" style="background: #fde725;"></div>
+            <span>Maximum Activation</span>
+          </div>
+        </div>
+      </div>
+      <div #networkVisualization class="network-viz"></div>
     </div>
-    
-    <div class="learning-explanation">
-      <h4>🎯 What You're Watching</h4>
-      <div class="explanation-grid">
-        <div class="explanation-card">
-          <h5>🔴 Red AI vs 🔵 Blue AI</h5>
-          <p>Two independent neural networks learning to play Pong simultaneously. Each AI starts with random weights and learns through trial and error.</p>
-        </div>
-        
-        <div class="explanation-card">
-          <h5>🎲 Exploration vs Exploitation</h5>
-          <p>The ε (epsilon) value shows exploration rate. High ε = more random actions for learning. As training progresses, ε decreases and AIs rely more on learned strategies.</p>
-        </div>
-        
-        <div class="explanation-card">
-          <h5>🧠 Deep Q-Learning</h5>
-          <p>Each AI uses a neural network to predict Q-values (quality scores) for actions: move up, stay, or move down. The network learns which actions lead to better rewards.</p>
-        </div>
-        
-        <div class="explanation-card">
-          <h5>📈 Learning Progress</h5>
-          <p>Watch win rates evolve over time. Initially random (~50%), but as learning progresses, one AI may develop superior strategies and dominate.</p>
-        </div>
+  </div>
+
+  <!-- Training Logs -->
+  <div class="logs-section" *ngIf="isTraining">
+    <h3>📝 TRAINING LOGS</h3>
+    <div class="logs-container">
+      <div class="log-entry" *ngFor="let log of trainingLogs; trackBy: trackByIndex">
+        <span class="log-timestamp">{{ log.timestamp | date:'HH:mm:ss' }}</span>
+        <span class="log-message">{{ log.message }}</span>
       </div>
     </div>
   </div>
 
-  <!-- Back to menu button -->
-  <div class="footer-section">
-    <button class="back-btn" (click)="$event.preventDefault(); goBack()">
-      ← Back to Menu
-    </button>
+  <!-- Advanced Analytics (Future Enhancement) -->
+  <div class="analytics-section">
+    <h3>📈 LEARNING ANALYTICS</h3>
+    <div class="charts-container">
+      <div class="chart-placeholder">
+        <p>📊 Performance charts will appear here during training</p>
+        <p>• Win rate over time</p>
+        <p>• Reward progression</p>
+        <p>• Loss function convergence</p>
+      </div>
+    </div>
   </div>
 </div>

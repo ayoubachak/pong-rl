@@ -8,14 +8,18 @@
 
     <div class="menu-options">
       <button class="menu-btn primary-btn" (click)="startVsBot()">
-        🎮 Play Game
+        🤖 Player vs Computer
+      </button>
+      
+      <button class="menu-btn secondary-btn" (click)="startVsPlayer()">
+        👥 Player vs Player
       </button>
       
       <button class="menu-btn ai-btn" (click)="onWatchAILearn()">
         🧠 Watch AIs Learn
       </button>
       
-      <button class="menu-btn secondary-btn" (click)="openSettings()">
+      <button class="menu-btn settings-btn" (click)="openSettings()">
         ⚙️ Game Settings
       </button>
     </div>
@@ -106,51 +110,24 @@
     <h2 class="settings-title">SETTINGS</h2>
     
     <div class="setting-group">
-      <label>Difficulty</label>
-      <div class="difficulty-buttons">
-        <button 
-          class="difficulty-btn" 
-          [class.active]="settings.difficulty === 'easy'"
-          (click)="updateDifficulty('easy')">
-          Easy
-        </button>
-        <button 
-          class="difficulty-btn" 
-          [class.active]="settings.difficulty === 'medium'"
-          (click)="updateDifficulty('medium')">
-          Medium
-        </button>
-        <button 
-          class="difficulty-btn" 
-          [class.active]="settings.difficulty === 'hard'"
-          (click)="updateDifficulty('hard')">
-          Hard
-        </button>
-      </div>
+      <label for="difficulty-select">Difficulty</label>
+      <select id="difficulty-select" [(ngModel)]="settings.difficulty" class="setting-input">
+        <option value="easy">Easy</option>
+        <option value="medium">Medium</option>
+        <option value="hard">Hard</option>
+      </select>
     </div>
 
     <div class="setting-group">
-      <label>Win Score</label>
-      <div class="score-buttons">
-        <button 
-          class="score-btn" 
-          [class.active]="settings.winScore === 3"
-          (click)="settings.winScore = 3">
-          3
-        </button>
-        <button 
-          class="score-btn" 
-          [class.active]="settings.winScore === 5"
-          (click)="settings.winScore = 5">
-          5
-        </button>
-        <button 
-          class="score-btn" 
-          [class.active]="settings.winScore === 10"
-          (click)="settings.winScore = 10">
-          10
-        </button>
-      </div>
+      <label for="win-score-input">Win Score</label>
+      <input 
+        id="win-score-input"
+        type="number" 
+        [(ngModel)]="settings.winScore" 
+        min="1" 
+        max="21" 
+        class="setting-input"
+      >
     </div>
 
     <button class="back-btn" (click)="backToMain()">

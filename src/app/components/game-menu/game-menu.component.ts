@@ -48,6 +48,12 @@ export class GameMenuComponent {
     this.startGame.emit(this.gameSettings);
   }
 
+  startVsPlayer() {
+    this.gameSettings.gameMode = 'vs-player';
+    this.gameSettings.winScore = this.settings.winScore;
+    this.startGame.emit(this.gameSettings);
+  }
+
   onWatchAILearn() {
     this.watchAILearn.emit();
   }

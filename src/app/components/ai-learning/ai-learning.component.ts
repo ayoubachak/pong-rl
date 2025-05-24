@@ -1,6 +1,8 @@
 import { Component, ElementRef, ViewChild, OnInit, OnDestroy, AfterViewInit, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import * as tf from '@tensorflow/tfjs';
+import * as d3 from 'd3';
 
 interface AIAgent {
   id: string;
@@ -43,25 +45,38 @@ interface LearningConfig {
   memorySize: number;
   targetUpdateFreq: number;
   gameSpeed: number;
+  episodes: number;
+}
+
+interface TrainingLog {
+  timestamp: string;
+  gameNumber: number;
+  agent1Score: number;
+  agent2Score: number;
+  agent1Reward: number;
+  agent2Reward: number;
+  agent1Epsilon: number;
+  agent2Epsilon: number;
+  message: string;
 }
 
 @Component({
   selector: 'app-ai-learning',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   templateUrl: './ai-learning.component.html',
   styleUrls: ['./ai-learning.component.css']
 })
 export class AiLearningComponent implements OnInit, OnDestroy, AfterViewInit {
   @ViewChild('gameCanvas', { static: true }) canvasRef!: ElementRef<HTMLCanvasElement>;
-  @ViewChild('networkVis', { static: true }) networkVisRef!: ElementRef<HTMLDivElement>;
+  @ViewChild('networkVisualization', { static: true }) networkVisRef!: ElementRef<HTMLDivElement>;
   @Output() backToMenu = new EventEmitter<void>();
 
   private ctx!: CanvasRenderingContext2D;
   private animationId!: number;
   isTraining = false;
-  gameNumber = 0; // Made public
-  episode = 0;    // Made public
+  gameNumber = 0;
+  episode = 0;
 
   // Game configuration
   canvas = { width: 800, height: 400 };
@@ -73,7 +88,11 @@ export class AiLearningComponent implements OnInit, OnDestroy, AfterViewInit {
   agent1: AIAgent | null = null;
   agent2: AIAgent | null = null;
 
-  // Learning configuration
+  // Training logs and tracking
+  trainingLogs: TrainingLog[] = [];
+  maxLogs = 100;
+
+  // Configuration for episodes
   config: LearningConfig = {
     learningRate: 0.001,
     epsilon: 1.0,
@@ -82,7 +101,8 @@ export class AiLearningComponent implements OnInit, OnDestroy, AfterViewInit {
     batchSize: 32,
     memorySize: 10000,
     targetUpdateFreq: 100,
-    gameSpeed: 1
+    gameSpeed: 1,
+    episodes: 1000
   };
 
   // Training statistics
@@ -100,6 +120,14 @@ export class AiLearningComponent implements OnInit, OnDestroy, AfterViewInit {
   private readonly lossHistory: number[] = [];
   private readonly rewardHistory: { agent1: number[], agent2: number[] } = { agent1: [], agent2: [] };
   private readonly winRateHistory: { agent1: number[], agent2: number[] } = { agent1: [], agent2: [] };
+
+  private networkSvg: any;
+  private readonly networkConfig = {
+    layers: [8, 128, 64, 32, 3],
+    nodeRadius: 8,
+    layerSpacing: 120,
+    nodeSpacing: 25
+  };
 
   ngOnInit() {
     this.initializeCanvas();
@@ -125,6 +153,11 @@ export class AiLearningComponent implements OnInit, OnDestroy, AfterViewInit {
     // Initialize TensorFlow.js visualization
     await tf.ready();
     console.log('TensorFlow.js ready for AI training!');
+    
+    // Initialize D3.js neural network visualization
+    setTimeout(() => {
+      this.initializeNetworkVisualization();
+    }, 100);
   }
 
   private createNeuralNetwork(): tf.Sequential {
@@ -147,12 +180,37 @@ export class AiLearningComponent implements OnInit, OnDestroy, AfterViewInit {
     return model;
   }
 
+  // Enhanced training loop with logging
+  private async trainingLoop() {
+    if (!this.isTraining || !this.agent1 || !this.agent2) return;
+
+    // Game simulation step
+    await this.gameStep();
+
+    // Log significant events
+    if (this.gameNumber % 50 === 0 && this.gameNumber > 0) {
+      this.addTrainingLog(`Milestone: ${this.gameNumber} games completed`);
+    }
+
+    // Update visualization every 10 games
+    if (this.gameNumber % 10 === 0) {
+      this.updateVisualization();
+    }
+
+    // Continue training
+    this.animationId = requestAnimationFrame(() => this.trainingLoop());
+  }
+
+  // Enhanced start training with better logging
   async startTraining() {
     if (this.isTraining) return;
 
     this.isTraining = true;
     this.gameNumber = 0;
     this.episode = 0;
+
+    this.addTrainingLog('🚀 Training session started');
+    this.addTrainingLog('🧠 Initializing neural networks...');
 
     // Initialize AI agents
     this.agent1 = {
@@ -185,30 +243,26 @@ export class AiLearningComponent implements OnInit, OnDestroy, AfterViewInit {
     this.agent1.targetModel.setWeights(this.agent1.model.getWeights());
     this.agent2.targetModel.setWeights(this.agent2.model.getWeights());
 
+    this.addTrainingLog('✅ Agents initialized successfully');
+    this.addTrainingLog('🎮 Starting game simulation...');
+
     this.resetGame();
     this.trainingLoop();
   }
 
+  // Enhanced stop training with logging
   stopTraining() {
     this.isTraining = false;
     if (this.animationId) {
       cancelAnimationFrame(this.animationId);
     }
-  }
-
-  private async trainingLoop() {
-    if (!this.isTraining || !this.agent1 || !this.agent2) return;
-
-    // Game simulation step
-    await this.gameStep();
-
-    // Update visualization every 10 games
-    if (this.gameNumber % 10 === 0) {
-      this.updateVisualization();
+    
+    if (this.gameNumber > 0) {
+      this.addTrainingLog(`⏹️ Training stopped after ${this.gameNumber} games`);
+      const agent1WinRate = this.stats.agent1WinRate.toFixed(1);
+      const agent2WinRate = this.stats.agent2WinRate.toFixed(1);
+      this.addTrainingLog(`📊 Final win rates - Red: ${agent1WinRate}%, Blue: ${agent2WinRate}%`);
     }
-
-    // Continue training
-    this.animationId = requestAnimationFrame(() => this.trainingLoop());
   }
 
   private async gameStep() {
@@ -281,10 +335,16 @@ export class AiLearningComponent implements OnInit, OnDestroy, AfterViewInit {
     ];
   }
 
+  private lastAction = 1; // Default to "stay"
+  private getLastAction(): number {
+    return this.lastAction;
+  }
+
   private async getAction(agent: AIAgent, state: number[]): Promise<number> {
     // Epsilon-greedy action selection
     if (Math.random() < agent.epsilon) {
-      return Math.floor(Math.random() * 3); // Random action: 0, 1, or 2
+      this.lastAction = Math.floor(Math.random() * 3);
+      return this.lastAction;
     }
 
     // Predict Q-values
@@ -295,7 +355,8 @@ export class AiLearningComponent implements OnInit, OnDestroy, AfterViewInit {
     qValues.dispose();
 
     // Return action with highest Q-value
-    return qArray.indexOf(Math.max(...Array.from(qArray)));
+    this.lastAction = qArray.indexOf(Math.max(...Array.from(qArray)));
+    return this.lastAction;
   }
 
   private executeAction(player: number, action: number) {
@@ -451,22 +512,326 @@ export class AiLearningComponent implements OnInit, OnDestroy, AfterViewInit {
     }
   }
 
+  // Enhanced game end handling with logging
   private handleGameEnd(winner: number | null) {
     if (!this.agent1 || !this.agent2) return;
 
     this.agent1.gamesPlayed++;
     this.agent2.gamesPlayed++;
 
+    let logMessage = '';
     if (winner === 1) {
       this.agent1.score++;
       this.stats.agent1Wins++;
+      logMessage = `🔴 Red AI wins game ${this.gameNumber + 1}`;
     } else if (winner === 2) {
       this.agent2.score++;
       this.stats.agent2Wins++;
+      logMessage = `🔵 Blue AI wins game ${this.gameNumber + 1}`;
+    } else {
+      logMessage = `⚽ Game ${this.gameNumber + 1} ended in a draw`;
     }
 
     this.stats.totalGames++;
     this.updateStats();
+
+    // Log game results periodically
+    if (this.gameNumber % 25 === 0) {
+      this.addTrainingLog(logMessage);
+    }
+
+    // Log epsilon decay milestones
+    if (this.agent1.epsilon <= 0.5 && this.agent1.epsilon > 0.49) {
+      this.addTrainingLog('🎯 Exploration reduced to 50% - agents becoming more strategic');
+    }
+    if (this.agent1.epsilon <= 0.1 && this.agent1.epsilon > 0.09) {
+      this.addTrainingLog('🧠 Exploration at 10% - agents mostly exploiting learned strategies');
+    }
+  }
+
+  // Add training log entry
+  private addTrainingLog(message: string, gameData?: any) {
+    const log: TrainingLog = {
+      timestamp: new Date().toLocaleTimeString(),
+      gameNumber: this.gameNumber,
+      agent1Score: this.agent1?.score ?? 0,
+      agent2Score: this.agent2?.score ?? 0,
+      agent1Reward: this.agent1?.totalReward ?? 0,
+      agent2Reward: this.agent2?.totalReward ?? 0,
+      agent1Epsilon: this.agent1?.epsilon ?? 0,
+      agent2Epsilon: this.agent2?.epsilon ?? 0,
+      message: message
+    };
+
+    this.trainingLogs.unshift(log);
+    
+    // Keep only the last maxLogs entries
+    if (this.trainingLogs.length > this.maxLogs) {
+      this.trainingLogs = this.trainingLogs.slice(0, this.maxLogs);
+    }
+  }
+
+  // Navigate back to menu
+  goBackToMenu() {
+    this.stopTraining();
+    this.backToMenu.emit();
+  }
+
+  // TrackBy function for ngFor performance
+  trackByIndex(index: number, item: any): number {
+    return index;
+  }
+
+  // Configuration update methods
+  updateLearningRate(value: number) {
+    this.config.learningRate = value;
+    this.addTrainingLog(`Learning rate updated to ${value.toFixed(4)}`);
+    if (this.agent1 && this.agent2) {
+      // Recompile models with new learning rate
+      this.agent1.model.compile({
+        optimizer: tf.train.adam(this.config.learningRate),
+        loss: 'meanSquaredError'
+      });
+      this.agent2.model.compile({
+        optimizer: tf.train.adam(this.config.learningRate),
+        loss: 'meanSquaredError'
+      });
+    }
+  }
+
+  updateGameSpeed(value: number) {
+    this.config.gameSpeed = value;
+    this.addTrainingLog(`Game speed updated to ${value}x`);
+  }
+
+  updateEpsilonDecay(value: number) {
+    this.config.epsilonDecay = value;
+    this.addTrainingLog(`Epsilon decay updated to ${value.toFixed(4)}`);
+  }
+
+  // Advanced visualization methods
+  private createPerformanceChart() {
+    const chartContainer = d3.select(this.networkVisRef.nativeElement.parentElement)
+      .append('div')
+      .attr('class', 'performance-chart')
+      .style('margin-top', '20px');
+
+    const width = 600;
+    const height = 200;
+
+    const svg = chartContainer.append('svg')
+      .attr('width', width)
+      .attr('height', height)
+      .style('background', 'rgba(15, 15, 35, 0.8)')
+      .style('border', '1px solid #00ff00')
+      .style('border-radius', '10px');
+
+    // Create scales
+    const xScale = d3.scaleLinear()
+      .domain([0, 100])
+      .range([40, width - 40]);
+
+    const yScale = d3.scaleLinear()
+      .domain([0, 100])
+      .range([height - 40, 40]);
+
+    // Add axes
+    svg.append('g')
+      .attr('transform', `translate(0, ${height - 40})`)
+      .call(d3.axisBottom(xScale))
+      .selectAll('text')
+      .style('fill', '#00ff00')
+      .style('font-family', 'monospace');
+
+    svg.append('g')
+      .attr('transform', 'translate(40, 0)')
+      .call(d3.axisLeft(yScale))
+      .selectAll('text')
+      .style('fill', '#00ff00')
+      .style('font-family', 'monospace');
+
+    // Add grid lines - Fixed tickFormat to use null instead of empty string
+    svg.append('g')
+      .attr('class', 'grid')
+      .attr('transform', `translate(0, ${height - 40})`)
+      .call(d3.axisBottom(xScale).tickSize(-height + 80).tickFormat(null))
+      .style('stroke-dasharray', '3,3')
+      .style('opacity', 0.3);
+
+    svg.append('g')
+      .attr('class', 'grid')
+      .attr('transform', 'translate(40, 0)')
+      .call(d3.axisLeft(yScale).tickSize(-width + 80).tickFormat(null))
+      .style('stroke-dasharray', '3,3')
+      .style('opacity', 0.3);
+
+    // Labels
+    svg.append('text')
+      .attr('x', width / 2)
+      .attr('y', height - 5)
+      .attr('text-anchor', 'middle')
+      .style('fill', '#00ff00')
+      .style('font-family', 'monospace')
+      .style('font-size', '12px')
+      .text('Games Played');
+
+    svg.append('text')
+      .attr('transform', 'rotate(-90)')
+      .attr('x', -height / 2)
+      .attr('y', 15)
+      .attr('text-anchor', 'middle')
+      .style('fill', '#00ff00')
+      .style('font-family', 'monospace')
+      .style('font-size', '12px')
+      .text('Win Rate %');
+
+    return svg;
+  }
+
+  // Export/Import model functionality
+  async exportModel(agentType: 'agent1' | 'agent2') {
+    const agent = agentType === 'agent1' ? this.agent1 : this.agent2;
+    if (!agent) return;
+
+    try {
+      // Create a downloadable model file
+      const modelData = {
+        modelWeights: agent.model.getWeights().map(w => w.arraySync()),
+        config: {
+          epsilon: agent.epsilon,
+          totalReward: agent.totalReward,
+          gamesPlayed: agent.gamesPlayed,
+          score: agent.score
+        },
+        exportDate: new Date().toISOString(),
+        agentType: agentType
+      };
+
+      const blob = new Blob([JSON.stringify(modelData, null, 2)], {
+        type: 'application/json'
+      });
+      
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `pong-ai-${agentType}-${Date.now()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      this.addTrainingLog(`${agentType} model exported successfully`);
+    } catch (error) {
+      console.error('Error exporting model:', error);
+      this.addTrainingLog(`Error exporting ${agentType} model`);
+    }
+  }
+
+  async importModel(agentType: 'agent1' | 'agent2', file: File) {
+    if (!file) return;
+
+    try {
+      this.addTrainingLog(`📥 Importing model for ${agentType}...`);
+      
+      const text = await file.text();
+      const modelData = JSON.parse(text);
+
+      const agent = agentType === 'agent1' ? this.agent1 : this.agent2;
+      if (!agent) {
+        this.addTrainingLog(`❌ Cannot import to ${agentType} - agent not initialized`);
+        return;
+      }
+
+      // Restore weights
+      const weights = modelData.modelWeights.map((w: any) => tf.tensor(w));
+      agent.model.setWeights(weights);
+      agent.targetModel.setWeights(weights);
+
+      // Restore stats if available
+      if (modelData.config) {
+        agent.epsilon = modelData.config.epsilon ?? agent.epsilon;
+        agent.totalReward = modelData.config.totalReward ?? 0;
+        agent.gamesPlayed = modelData.config.gamesPlayed ?? 0;
+        agent.score = modelData.config.score ?? 0;
+      }
+
+      // Cleanup tensors
+      weights.forEach((w: tf.Tensor) => w.dispose());
+
+      this.addTrainingLog(`✅ Model imported successfully for ${agent.name}`);
+      this.addTrainingLog(`📊 Restored stats: ${agent.gamesPlayed} games, ${agent.score} wins`);
+    } catch (error) {
+      console.error('Error importing model:', error);
+      this.addTrainingLog(`❌ Failed to import model for ${agentType}`);
+    }
+  }
+
+  // Reset training progress
+  resetTraining() {
+    this.stopTraining();
+    
+    this.addTrainingLog('🔄 Resetting training session...');
+    
+    // Reset statistics
+    this.stats = {
+      agent1Wins: 0,
+      agent2Wins: 0,
+      totalGames: 0,
+      avgRewardAgent1: 0,
+      avgRewardAgent2: 0,
+      agent1WinRate: 0,
+      agent2WinRate: 0
+    };
+
+    // Clear history
+    this.rewardHistory.agent1.length = 0;
+    this.rewardHistory.agent2.length = 0;
+    this.winRateHistory.agent1.length = 0;
+    this.winRateHistory.agent2.length = 0;
+    this.lossHistory.length = 0;
+
+    // Reset game counter
+    this.gameNumber = 0;
+    this.episode = 0;
+
+    // Dispose and recreate agents if they exist
+    if (this.agent1) {
+      this.agent1.model.dispose();
+      this.agent1.targetModel.dispose();
+      this.agent1 = null;
+    }
+    
+    if (this.agent2) {
+      this.agent2.model.dispose();
+      this.agent2.targetModel.dispose();
+      this.agent2 = null;
+    }
+
+    // Clear visualization
+    if (this.networkVisRef?.nativeElement) {
+      d3.select(this.networkVisRef.nativeElement).selectAll('*').remove();
+    }
+
+    this.addTrainingLog('✅ Training session reset complete');
+    this.addTrainingLog('🎯 Ready to start new training session');
+  }
+
+  // Clean up resources
+  private cleanup() {
+    if (this.agent1) {
+      this.agent1.model.dispose();
+      this.agent1.targetModel.dispose();
+    }
+    
+    if (this.agent2) {
+      this.agent2.model.dispose();
+      this.agent2.targetModel.dispose();
+    }
+
+    // Clear D3 visualization
+    if (this.networkVisRef?.nativeElement) {
+      d3.select(this.networkVisRef.nativeElement).selectAll('*').remove();
+    }
   }
 
   private updateStats() {
@@ -524,71 +889,182 @@ export class AiLearningComponent implements OnInit, OnDestroy, AfterViewInit {
     this.ctx.stroke();
     this.ctx.setLineDash([]);
 
-    // Draw paddles
-    this.ctx.fillStyle = '#ff4444';
-    this.ctx.fillRect(this.paddle1.x, this.paddle1.y, this.paddle1.width, this.paddle1.height);
-    
-    this.ctx.fillStyle = '#4444ff';
-    this.ctx.fillRect(this.paddle2.x, this.paddle2.y, this.paddle2.width, this.paddle2.height);
+    // Draw paddles with AI agent colors
+    if (this.agent1) {
+      this.ctx.fillStyle = this.agent1.color;
+      this.ctx.fillRect(this.paddle1.x, this.paddle1.y, this.paddle1.width, this.paddle1.height);
+    }
+
+    if (this.agent2) {
+      this.ctx.fillStyle = this.agent2.color;
+      this.ctx.fillRect(this.paddle2.x, this.paddle2.y, this.paddle2.width, this.paddle2.height);
+    }
 
     // Draw ball
-    this.ctx.fillStyle = '#ffffff';
+    this.ctx.fillStyle = '#00ff00';
     this.ctx.beginPath();
     this.ctx.arc(this.ball.x, this.ball.y, this.ball.radius, 0, Math.PI * 2);
     this.ctx.fill();
 
-    // Draw scores
-    this.ctx.fillStyle = '#ffffff';
-    this.ctx.font = '24px Courier New';
-    this.ctx.textAlign = 'center';
-    
-    if (this.agent1 && this.agent2) {
-      this.ctx.fillText(`${this.agent1.score}`, this.canvas.width / 4, 30);
-      this.ctx.fillText(`${this.agent2.score}`, (3 * this.canvas.width) / 4, 30);
+    // Update neural network visualization
+    this.updateNetworkVisualization();
+  }
+
+  private initializeNetworkVisualization() {
+    if (!this.networkVisRef?.nativeElement) return;
+
+    const container = d3.select(this.networkVisRef.nativeElement);
+    container.selectAll('*').remove();
+
+    const width = 800;
+    const height = 300;
+
+    this.networkSvg = container.append('svg')
+      .attr('width', width)
+      .attr('height', height)
+      .style('background', 'rgba(15, 15, 35, 0.8)')
+      .style('border', '2px solid #00ff00')
+      .style('border-radius', '15px');
+
+    // Create network nodes
+    const nodes: any[] = [];
+    const links: any[] = [];
+
+    for (let layerIndex = 0; layerIndex < this.networkConfig.layers.length; layerIndex++) {
+      const layerSize = this.networkConfig.layers[layerIndex];
+      const x = 60 + layerIndex * this.networkConfig.layerSpacing;
+
+      for (let nodeIndex = 0; nodeIndex < layerSize; nodeIndex++) {
+        const y = height / 2 - (layerSize - 1) * this.networkConfig.nodeSpacing / 2 + nodeIndex * this.networkConfig.nodeSpacing;
+        
+        nodes.push({
+          id: `${layerIndex}-${nodeIndex}`,
+          x: x,
+          y: y,
+          layer: layerIndex,
+          index: nodeIndex,
+          radius: this.networkConfig.nodeRadius
+        });
+
+        // Create links to next layer
+        if (layerIndex < this.networkConfig.layers.length - 1) {
+          const nextLayerSize = this.networkConfig.layers[layerIndex + 1];
+          for (let nextNodeIndex = 0; nextNodeIndex < nextLayerSize; nextNodeIndex++) {
+            links.push({
+              source: `${layerIndex}-${nodeIndex}`,
+              target: `${layerIndex + 1}-${nextNodeIndex}`,
+              weight: Math.random()
+            });
+          }
+        }
+      }
+    }
+
+    // Draw links
+    this.networkSvg.selectAll('.link')
+      .data(links)
+      .enter()
+      .append('line')
+      .attr('class', 'link')
+      .attr('x1', (d: any) => nodes.find(n => n.id === d.source)?.x ?? 0)
+      .attr('y1', (d: any) => nodes.find(n => n.id === d.source)?.y ?? 0)
+      .attr('x2', (d: any) => nodes.find(n => n.id === d.target)?.x ?? 0)
+      .attr('y2', (d: any) => nodes.find(n => n.id === d.target)?.y ?? 0)
+      .attr('stroke', '#666')
+      .attr('stroke-width', 1)
+      .attr('stroke-opacity', 0.3);
+
+    // Draw nodes
+    this.networkSvg.selectAll('.node')
+      .data(nodes)
+      .enter()
+      .append('circle')
+      .attr('class', 'node')
+      .attr('cx', (d: any) => d.x)
+      .attr('cy', (d: any) => d.y)
+      .attr('r', (d: any) => d.radius)
+      .attr('fill', '#4a90e2')
+      .attr('stroke', '#00ff00')
+      .attr('stroke-width', 1);
+
+    // Add layer labels
+    const layerLabels = ['Input', 'Hidden 1', 'Hidden 2', 'Hidden 3', 'Output'];
+    for (let i = 0; i < this.networkConfig.layers.length; i++) {
+      this.networkSvg.append('text')
+        .attr('x', 60 + i * this.networkConfig.layerSpacing)
+        .attr('y', 30)
+        .attr('text-anchor', 'middle')
+        .style('fill', '#00ff00')
+        .style('font-family', 'monospace')
+        .style('font-size', '12px')
+        .text(layerLabels[i] || `Layer ${i + 1}`);
     }
   }
 
-  private cleanup() {
-    if (this.agent1) {
-      this.agent1.model.dispose();
-      this.agent1.targetModel.dispose();
-    }
-    if (this.agent2) {
-      this.agent2.model.dispose();
-      this.agent2.targetModel.dispose();
-    }
-  }
+  private updateNetworkVisualization() {
+    if (!this.networkSvg) return;
 
-  // Configuration methods
-  updateLearningRate(value: number) {
-    this.config.learningRate = value;
-    if (this.agent1 && this.agent2) {
-      // Update optimizers with new learning rate
-      this.agent1.model.compile({
-        optimizer: tf.train.adam(value),
-        loss: 'meanSquaredError'
+    const state = this.getGameState();
+
+    // Update input layer activations
+    this.networkSvg.selectAll('.node')
+      .filter((d: any) => d.layer === 0)
+      .transition()
+      .duration(100)
+      .attr('fill', (d: any) => {
+        const activation = Math.abs(state[d.index] || 0);
+        return d3.interpolateViridis(activation);
       });
-      this.agent2.model.compile({
-        optimizer: tf.train.adam(value),
-        loss: 'meanSquaredError'
+
+    // Simulate hidden layer activations with some randomness
+    this.networkSvg.selectAll('.node')
+      .filter((d: any) => d.layer > 0 && d.layer < this.networkConfig.layers.length - 1)
+      .transition()
+      .duration(200)
+      .attr('fill', (d: any) => {
+        const activation = Math.random() * 0.8 + 0.2; // More realistic activation
+        return d3.interpolateViridis(activation);
       });
-    }
+
+    // Update output layer based on agent's last action
+    const lastAction = this.getLastAction();
+    this.networkSvg.selectAll('.node')
+      .filter((d: any) => d.layer === this.networkConfig.layers.length - 1)
+      .transition()
+      .duration(150)
+      .attr('fill', (d: any) => {
+        const activation = d.index === lastAction ? 1.0 : 0.3;
+        return d3.interpolateViridis(activation);
+      })
+      .attr('stroke-width', (d: any) => d.index === lastAction ? 3 : 1);
+
+    // Update link weights visualization
+    this.networkSvg.selectAll('.link')
+      .transition()
+      .duration(300)
+      .attr('stroke-opacity', () => 0.3 + Math.random() * 0.4);
   }
 
-  updateGameSpeed(value: number) {
-    this.config.gameSpeed = value;
+  // Enhanced statistics display
+  getAgent1Stats() {
+    return this.agent1 ? {
+      name: this.agent1.name,
+      wins: this.agent1.score,
+      winRate: this.stats.agent1WinRate.toFixed(1),
+      avgReward: this.stats.avgRewardAgent1.toFixed(2),
+      epsilon: this.agent1.epsilon.toFixed(3),
+      gamesPlayed: this.agent1.gamesPlayed
+    } : null;
   }
 
-  updateBatchSize(value: number) {
-    this.config.batchSize = value;
-  }
-
-  onBackToMenu() {
-    this.stopTraining();
-    this.backToMenu.emit();
-  }
-
-  goBack() {
-    this.backToMenu.emit();
+  getAgent2Stats() {
+    return this.agent2 ? {
+      name: this.agent2.name,
+      wins: this.agent2.score,
+      winRate: this.stats.agent2WinRate.toFixed(1),
+      avgReward: this.stats.avgRewardAgent2.toFixed(2),
+      epsilon: this.agent2.epsilon.toFixed(3),
+      gamesPlayed: this.agent2.gamesPlayed
+    } : null;
   }
 }
