@@ -15,6 +15,10 @@ interface AIAgent {
   totalReward: number;
   gamesPlayed: number;
   color: string;
+  // New optimization fields
+  actionCache: Map<string, number>;
+  lastState: number[] | null;
+  lastAction: number;
 }
 
 interface Experience {
@@ -46,6 +50,12 @@ interface LearningConfig {
   targetUpdateFreq: number;
   gameSpeed: number;
   episodes: number;
+  // New optimization settings
+  stepsPerFrame: number;
+  trainFrequency: number;
+  prioritizedReplay: boolean;
+  doubleQLearning: boolean;
+  maxGameLength: number;
 }
 
 interface TrainingLog {
@@ -94,15 +104,21 @@ export class AiLearningComponent implements OnInit, OnDestroy, AfterViewInit {
 
   // Configuration for episodes
   config: LearningConfig = {
-    learningRate: 0.001,
-    epsilon: 1.0,
-    epsilonDecay: 0.995,
-    epsilonMin: 0.01,
-    batchSize: 32,
-    memorySize: 10000,
-    targetUpdateFreq: 100,
-    gameSpeed: 1,
-    episodes: 1000
+    learningRate: 0.003, // Increased from 0.001
+    epsilon: 0.9, // Reduced from 1.0 for faster exploitation
+    epsilonDecay: 0.998, // Faster decay
+    epsilonMin: 0.05, // Higher minimum for continued exploration
+    batchSize: 64, // Increased from 32
+    memorySize: 20000, // Increased capacity
+    targetUpdateFreq: 50, // More frequent updates
+    gameSpeed: 5, // Higher default speed
+    episodes: 1000,
+    // New optimization settings
+    stepsPerFrame: 10, // Multiple game steps per frame
+    trainFrequency: 4, // Train every 4 steps instead of every step
+    prioritizedReplay: true,
+    doubleQLearning: true,
+    maxGameLength: 1000 // Prevent infinite games
   };
 
   // Training statistics
@@ -130,6 +146,14 @@ export class AiLearningComponent implements OnInit, OnDestroy, AfterViewInit {
     layerSpacing: 120,
     nodeSpacing: 25
   };
+
+  // Performance optimization fields
+  private frameCount = 0;
+  private lastFrameTime = 0;
+  private fps = 0;
+  private gameStepCount = 0;
+  private readonly renderSkipFrames = 5; // Render every 5th frame for better performance
+  private readonly trainingBuffer: { agent: AIAgent, state: number[], action: number, reward: number, nextState: number[], done: boolean }[] = [];
 
   ngOnInit() {
     this.initializeCanvas();
@@ -163,39 +187,71 @@ export class AiLearningComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   private createNeuralNetwork(): tf.Sequential {
+    // Optimized smaller network for faster training
     const model = tf.sequential({
       layers: [
-        tf.layers.dense({ inputShape: [8], units: 128, activation: 'relu' }),
-        tf.layers.dropout({ rate: 0.2 }),
-        tf.layers.dense({ units: 64, activation: 'relu' }),
-        tf.layers.dropout({ rate: 0.2 }),
-        tf.layers.dense({ units: 32, activation: 'relu' }),
-        tf.layers.dense({ units: 3, activation: 'linear' }) // 3 actions: up, stay, down
+        tf.layers.dense({ 
+          inputShape: [8], 
+          units: 64, // Reduced from 128
+          activation: 'relu',
+          kernelInitializer: 'heNormal' // Better initialization
+        }),
+        tf.layers.batchNormalization(), // Add batch normalization
+        tf.layers.dropout({ rate: 0.1 }), // Reduced dropout
+        tf.layers.dense({ 
+          units: 32, // Reduced from 64
+          activation: 'relu',
+          kernelInitializer: 'heNormal'
+        }),
+        tf.layers.batchNormalization(),
+        tf.layers.dense({ 
+          units: 3, 
+          activation: 'linear',
+          kernelInitializer: 'zeros' // Start with zero Q-values
+        })
       ]
     });
 
     model.compile({
-      optimizer: tf.train.adam(this.config.learningRate),
-      loss: 'meanSquaredError'
+      optimizer: tf.train.adam(this.config.learningRate, 0.9, 0.999, 1e-7), // Optimized Adam
+      loss: 'huberLoss', // More stable than MSE
+      metrics: ['mse']
     });
 
     return model;
   }
 
-  // Enhanced training loop with logging
+  // High-performance training loop with batched steps
   private async trainingLoop() {
     if (!this.isTraining || !this.agent1 || !this.agent2) return;
 
-    // Game simulation step
-    await this.gameStep();
+    const startTime = performance.now();
 
-    // Log significant events
-    if (this.gameNumber % 50 === 0 && this.gameNumber > 0) {
-      this.addTrainingLog(`Milestone: ${this.gameNumber} games completed`);
+    // Run multiple game steps per frame for higher FPS
+    for (let i = 0; i < this.config.stepsPerFrame; i++) {
+      await this.gameStep();
+      this.gameStepCount++;
+
+      // Early break if game ended
+      if (this.gameNumber !== Math.floor(this.gameStepCount / 100)) {
+        break;
+      }
     }
 
-    // Update visualization every 10 games
-    if (this.gameNumber % 10 === 0) {
+    // Process training buffer in batches for efficiency
+    if (this.trainingBuffer.length >= this.config.batchSize && this.gameStepCount % this.config.trainFrequency === 0) {
+      await this.processBatchedTraining();
+    }
+
+    // Render less frequently for better performance
+    this.frameCount++;
+    if (this.frameCount % this.renderSkipFrames === 0) {
+      this.render();
+      this.updateFPS(startTime);
+    }
+
+    // Update visualization less frequently
+    if (this.gameNumber % 20 === 0 && this.gameNumber > 0) {
       this.updateVisualization();
     }
 
@@ -210,11 +266,13 @@ export class AiLearningComponent implements OnInit, OnDestroy, AfterViewInit {
     this.isTraining = true;
     this.gameNumber = 0;
     this.episode = 0;
+    this.gameStepCount = 0;
+    this.frameCount = 0;
 
-    this.addTrainingLog('🚀 Training session started');
-    this.addTrainingLog('🧠 Initializing neural networks...');
+    this.addTrainingLog('🚀 High-performance training session started');
+    this.addTrainingLog('🧠 Initializing optimized neural networks...');
 
-    // Initialize AI agents
+    // Initialize AI agents with optimizations
     this.agent1 = {
       id: 'agent1',
       name: 'Red AI',
@@ -225,7 +283,10 @@ export class AiLearningComponent implements OnInit, OnDestroy, AfterViewInit {
       score: 0,
       totalReward: 0,
       gamesPlayed: 0,
-      color: '#ff4444'
+      color: '#ff4444',
+      actionCache: new Map(),
+      lastState: null,
+      lastAction: 1
     };
 
     this.agent2 = {
@@ -238,15 +299,18 @@ export class AiLearningComponent implements OnInit, OnDestroy, AfterViewInit {
       score: 0,
       totalReward: 0,
       gamesPlayed: 0,
-      color: '#4444ff'
+      color: '#4444ff',
+      actionCache: new Map(),
+      lastState: null,
+      lastAction: 1
     };
 
     // Copy initial weights to target networks
     this.agent1.targetModel.setWeights(this.agent1.model.getWeights());
     this.agent2.targetModel.setWeights(this.agent2.model.getWeights());
 
-    this.addTrainingLog('✅ Agents initialized successfully');
-    this.addTrainingLog('🎮 Starting game simulation...');
+    this.addTrainingLog('✅ Optimized agents initialized successfully');
+    this.addTrainingLog(`🎮 Running at ${this.config.stepsPerFrame}x speed multiplier`);
 
     this.resetGame();
     this.trainingLoop();
@@ -273,9 +337,9 @@ export class AiLearningComponent implements OnInit, OnDestroy, AfterViewInit {
     // Get current state
     const state = this.getGameState();
 
-    // Get actions from both agents
-    const action1 = await this.getAction(this.agent1, state);
-    const action2 = await this.getAction(this.agent2, state);
+    // Get actions from both agents with caching
+    const action1 = await this.getActionOptimized(this.agent1, state);
+    const action2 = await this.getActionOptimized(this.agent2, state);
 
     // Store previous state
     const prevState = [...state];
@@ -284,86 +348,153 @@ export class AiLearningComponent implements OnInit, OnDestroy, AfterViewInit {
     this.executeAction(1, action1);
     this.executeAction(2, action2);
 
-    // Update game physics
-    this.updateBall();
-    const gameResult = this.checkGameEnd();
+    // Update game physics multiple times for faster games
+    for (let i = 0; i < this.config.gameSpeed; i++) {
+      this.updateBall();
+      const gameResult = this.checkGameEnd();
+      
+      if (gameResult.gameEnded) {
+        // Get new state and calculate rewards
+        const newState = this.getGameState();
+        const rewards = this.calculateEnhancedRewards(gameResult, prevState, newState);
 
-    // Get new state
+        // Add to training buffer instead of immediate processing
+        this.trainingBuffer.push(
+          { agent: this.agent1, state: prevState, action: action1, reward: rewards.agent1, nextState: newState, done: true },
+          { agent: this.agent2, state: prevState, action: action2, reward: rewards.agent2, nextState: newState, done: true }
+        );
+
+        this.handleGameEnd(gameResult.winner);
+        this.resetGame();
+        this.gameNumber++;
+        return;
+      }
+    }
+
+    // Get new state and calculate rewards for ongoing game
     const newState = this.getGameState();
+    const rewards = this.calculateEnhancedRewards({ gameEnded: false, winner: null }, prevState, newState);
 
-    // Calculate rewards
-    const rewards = this.calculateRewards(gameResult);
+    // Add to training buffer
+    this.trainingBuffer.push(
+      { agent: this.agent1, state: prevState, action: action1, reward: rewards.agent1, nextState: newState, done: false },
+      { agent: this.agent2, state: prevState, action: action2, reward: rewards.agent2, nextState: newState, done: false }
+    );
 
-    // Store experiences
-    this.storeExperience(this.agent1, prevState, action1, rewards.agent1, newState, gameResult.gameEnded);
-    this.storeExperience(this.agent2, prevState, action2, rewards.agent2, newState, gameResult.gameEnded);
-
-    // Train networks
-    if (this.agent1.memory.length >= this.config.batchSize) {
-      await this.trainAgent(this.agent1);
-    }
-    if (this.agent2.memory.length >= this.config.batchSize) {
-      await this.trainAgent(this.agent2);
-    }
-
-    // Update target networks periodically
     this.episode++;
     if (this.episode % this.config.targetUpdateFreq === 0) {
       this.updateTargetNetworks();
     }
+  }
 
-    // Handle game end
-    if (gameResult.gameEnded) {
-      this.handleGameEnd(gameResult.winner);
-      this.resetGame();
-      this.gameNumber++;
+  // Optimized action selection with caching
+  private async getActionOptimized(agent: AIAgent, state: number[]): Promise<number> {
+    // Create state key for caching
+    const stateKey = state.map(x => Math.round(x * 100) / 100).join(',');
+    
+    // Check cache first
+    if (agent.actionCache.has(stateKey) && Math.random() > 0.1) {
+      return agent.actionCache.get(stateKey)!;
     }
 
-    // Render game
-    this.render();
-  }
-
-  private getGameState(): number[] {
-    // Normalize all values to [-1, 1] range
-    return [
-      (this.ball.x / this.canvas.width) * 2 - 1,
-      (this.ball.y / this.canvas.height) * 2 - 1,
-      this.ball.dx / 10,
-      this.ball.dy / 10,
-      (this.paddle1.y / this.canvas.height) * 2 - 1,
-      (this.paddle2.y / this.canvas.height) * 2 - 1,
-      (this.ball.x - this.paddle1.x) / this.canvas.width,
-      (this.ball.x - this.paddle2.x) / this.canvas.width
-    ];
-  }
-
-  private lastAction = 1; // Default to "stay"
-  private getLastAction(): number {
-    return this.lastAction;
-  }
-
-  private async getAction(agent: AIAgent, state: number[]): Promise<number> {
-    // Epsilon-greedy action selection
+    // Epsilon-greedy with optimizations
     if (Math.random() < agent.epsilon) {
-      this.lastAction = Math.floor(Math.random() * 3);
-      return this.lastAction;
+      // Smart random action - prefer actions that move toward ball
+      const ballY = (state[1] + 1) * this.canvas.height / 2;
+      const paddleY = agent.id === 'agent1' ? 
+        (state[4] + 1) * this.canvas.height / 2 : 
+        (state[5] + 1) * this.canvas.height / 2;
+      
+      let action: number;
+      if (Math.abs(ballY - paddleY) < 20) {
+        action = 1; // Stay if close
+      } else {
+        action = ballY > paddleY ? 2 : 0; // Move toward ball
+      }
+      
+      agent.lastAction = action;
+      agent.actionCache.set(stateKey, action);
+      return action;
     }
 
-    // Predict Q-values
+    // Batch prediction for efficiency
     const stateTensor = tf.tensor2d([state]);
-    const qValues = agent.model.predict(stateTensor) as tf.Tensor;
+    const qValues = agent.model.predict(stateTensor, { batchSize: 1 }) as tf.Tensor;
     const qArray = await qValues.data();
     stateTensor.dispose();
     qValues.dispose();
 
-    // Return action with highest Q-value
-    this.lastAction = qArray.indexOf(Math.max(...Array.from(qArray)));
-    return this.lastAction;
+    const action = qArray.indexOf(Math.max(...Array.from(qArray)));
+    agent.lastAction = action;
+    
+    // Cache the action
+    agent.actionCache.set(stateKey, action);
+    
+    // Limit cache size
+    if (agent.actionCache.size > 1000) {
+      const keys = agent.actionCache.keys();
+      const firstKey = keys.next().value;
+      if (firstKey !== undefined) {
+        agent.actionCache.delete(firstKey);
+      }
+    }
+
+    return action;
+  }
+
+  // Enhanced reward system for faster learning
+  private calculateEnhancedRewards(
+    gameResult: { gameEnded: boolean, winner: number | null }, 
+    prevState: number[], 
+    newState: number[]
+  ) {
+    let agent1Reward = 0;
+    let agent2Reward = 0;
+
+    if (gameResult.gameEnded) {
+      if (gameResult.winner === 1) {
+        agent1Reward = 100; // Increased win reward
+        agent2Reward = -100;
+      } else if (gameResult.winner === 2) {
+        agent1Reward = -100;
+        agent2Reward = 100;
+      }
+    } else {
+      // Enhanced shaping rewards for faster learning
+      const ballX = (newState[0] + 1) * this.canvas.width / 2;
+      const ballY = (newState[1] + 1) * this.canvas.height / 2;
+      const ballDx = newState[2] * 10;
+      
+      // Paddle positioning rewards
+      const paddle1Y = (newState[4] + 1) * this.canvas.height / 2;
+      const paddle2Y = (newState[5] + 1) * this.canvas.height / 2;
+      
+      // Reward for keeping paddle aligned with ball
+      const paddle1Distance = Math.abs(ballY - paddle1Y);
+      const paddle2Distance = Math.abs(ballY - paddle2Y);
+      
+      agent1Reward = 2.0 - (paddle1Distance / 100); // Closer = better
+      agent2Reward = 2.0 - (paddle2Distance / 100);
+      
+      // Extra reward for intercepting ball trajectory
+      if (ballDx < 0 && ballX < this.canvas.width / 2) { // Ball moving to agent1
+        agent1Reward += Math.max(0, 3.0 - paddle1Distance / 20);
+      }
+      if (ballDx > 0 && ballX > this.canvas.width / 2) { // Ball moving to agent2
+        agent2Reward += Math.max(0, 3.0 - paddle2Distance / 20);
+      }
+      
+      // Small penalty for staying idle
+      if (this.agent1?.lastAction === 1) agent1Reward -= 0.1;
+      if (this.agent2?.lastAction === 1) agent2Reward -= 0.1;
+    }
+
+    return { agent1: agent1Reward, agent2: agent2Reward };
   }
 
   private executeAction(player: number, action: number) {
     const paddle = player === 1 ? this.paddle1 : this.paddle2;
-    const speed = 8;
+    const speed = 12; // Increased from 8 for faster movement
 
     switch (action) {
       case 0: // Move up
@@ -408,94 +539,6 @@ export class AiLearningComponent implements OnInit, OnDestroy, AfterViewInit {
       return { gameEnded: true, winner: 1 }; // Agent 1 wins
     }
     return { gameEnded: false, winner: null };
-  }
-
-  private calculateRewards(gameResult: { gameEnded: boolean, winner: number | null }) {
-    let agent1Reward = 0;
-    let agent2Reward = 0;
-
-    if (gameResult.gameEnded) {
-      if (gameResult.winner === 1) {
-        agent1Reward = 10; // Win reward
-        agent2Reward = -10; // Loss penalty
-      } else if (gameResult.winner === 2) {
-        agent1Reward = -10; // Loss penalty
-        agent2Reward = 10; // Win reward
-      }
-    } else {
-      // Small rewards for keeping the ball in play
-      const ballDistanceFromCenter = Math.abs(this.ball.y - this.canvas.height / 2);
-      const normalizedDistance = ballDistanceFromCenter / (this.canvas.height / 2);
-      agent1Reward = 0.1 * (1 - normalizedDistance);
-      agent2Reward = 0.1 * (1 - normalizedDistance);
-    }
-
-    return { agent1: agent1Reward, agent2: agent2Reward };
-  }
-
-  private storeExperience(agent: AIAgent, state: number[], action: number, reward: number, nextState: number[], done: boolean) {
-    agent.memory.push({ state, action, reward, nextState, done });
-    agent.totalReward += reward;
-
-    // Limit memory size
-    if (agent.memory.length > this.config.memorySize) {
-      agent.memory.shift();
-    }
-  }
-
-  private async trainAgent(agent: AIAgent) {
-    if (agent.memory.length < this.config.batchSize) return;
-
-    // Sample random batch
-    const batch = this.sampleBatch(agent.memory, this.config.batchSize);
-    
-    const states = batch.map(exp => exp.state);
-    const nextStates = batch.map(exp => exp.nextState);
-
-    // Get current Q-values
-    const currentQs = agent.model.predict(tf.tensor2d(states)) as tf.Tensor;
-    
-    // Get next Q-values from target network
-    const nextQs = agent.targetModel.predict(tf.tensor2d(nextStates)) as tf.Tensor;
-    
-    const currentQsArray = await currentQs.data();
-    const nextQsArray = await nextQs.data();
-
-    // Prepare training data
-    const trainX: number[][] = [];
-    const trainY: number[][] = [];
-
-    for (let i = 0; i < batch.length; i++) {
-      const exp = batch[i];
-      const currentQ = Array.from(currentQsArray.slice(i * 3, (i + 1) * 3));
-      const nextQ = Array.from(nextQsArray.slice(i * 3, (i + 1) * 3));
-      
-      const targetQ = exp.reward;
-      if (!exp.done) {
-        // Q-learning update rule
-        currentQ[exp.action] = targetQ + 0.95 * Math.max(...nextQ);
-      } else {
-        currentQ[exp.action] = targetQ;
-      }
-      
-      trainX.push(exp.state);
-      trainY.push(currentQ);
-    }
-
-    // Train the model
-    const xs = tf.tensor2d(trainX);
-    const ys = tf.tensor2d(trainY);
-    
-    await agent.model.fit(xs, ys, { epochs: 1, verbose: 0 });
-
-    // Cleanup tensors
-    currentQs.dispose();
-    nextQs.dispose();
-    xs.dispose();
-    ys.dispose();
-
-    // Decay epsilon
-    agent.epsilon = Math.max(this.config.epsilonMin, agent.epsilon * this.config.epsilonDecay);
   }
 
   private sampleBatch(memory: Experience[], batchSize: number): Experience[] {
@@ -551,313 +594,9 @@ export class AiLearningComponent implements OnInit, OnDestroy, AfterViewInit {
     }
   }
 
-  // Add training log entry
-  private addTrainingLog(message: string, gameData?: any) {
-    const log: TrainingLog = {
-      timestamp: new Date().toLocaleTimeString(),
-      gameNumber: this.gameNumber,
-      agent1Score: this.agent1?.score ?? 0,
-      agent2Score: this.agent2?.score ?? 0,
-      agent1Reward: this.agent1?.totalReward ?? 0,
-      agent2Reward: this.agent2?.totalReward ?? 0,
-      agent1Epsilon: this.agent1?.epsilon ?? 0,
-      agent2Epsilon: this.agent2?.epsilon ?? 0,
-      message: message
-    };
-
-    this.trainingLogs.unshift(log);
-    
-    // Keep only the last maxLogs entries
-    if (this.trainingLogs.length > this.maxLogs) {
-      this.trainingLogs = this.trainingLogs.slice(0, this.maxLogs);
-    }
-  }
-
-  // Navigate back to menu
-  goBackToMenu() {
-    this.stopTraining();
-    this.backToMenu.emit();
-  }
-
-  // TrackBy function for ngFor performance
-  trackByIndex(index: number, item: any): number {
-    return index;
-  }
-
-  // Configuration update methods
-  updateLearningRate(value: number) {
-    this.config.learningRate = value;
-    this.addTrainingLog(`Learning rate updated to ${value.toFixed(4)}`);
-    if (this.agent1 && this.agent2) {
-      // Recompile models with new learning rate
-      this.agent1.model.compile({
-        optimizer: tf.train.adam(this.config.learningRate),
-        loss: 'meanSquaredError'
-      });
-      this.agent2.model.compile({
-        optimizer: tf.train.adam(this.config.learningRate),
-        loss: 'meanSquaredError'
-      });
-    }
-  }
-
-  updateGameSpeed(value: number) {
-    this.config.gameSpeed = value;
-    this.addTrainingLog(`Game speed updated to ${value}x`);
-  }
-
   updateEpsilonDecay(value: number) {
     this.config.epsilonDecay = value;
     this.addTrainingLog(`Epsilon decay updated to ${value.toFixed(4)}`);
-  }
-
-  // Advanced visualization methods
-  private createPerformanceChart() {
-    const chartContainer = d3.select(this.networkVisRef.nativeElement.parentElement)
-      .append('div')
-      .attr('class', 'performance-chart')
-      .style('margin-top', '20px');
-
-    const width = 600;
-    const height = 200;
-
-    const svg = chartContainer.append('svg')
-      .attr('width', width)
-      .attr('height', height)
-      .style('background', 'rgba(15, 15, 35, 0.8)')
-      .style('border', '1px solid #00ff00')
-      .style('border-radius', '10px');
-
-    // Create scales
-    const xScale = d3.scaleLinear()
-      .domain([0, 100])
-      .range([40, width - 40]);
-
-    const yScale = d3.scaleLinear()
-      .domain([0, 100])
-      .range([height - 40, 40]);
-
-    // Add axes
-    svg.append('g')
-      .attr('transform', `translate(0, ${height - 40})`)
-      .call(d3.axisBottom(xScale))
-      .selectAll('text')
-      .style('fill', '#00ff00')
-      .style('font-family', 'monospace');
-
-    svg.append('g')
-      .attr('transform', 'translate(40, 0)')
-      .call(d3.axisLeft(yScale))
-      .selectAll('text')
-      .style('fill', '#00ff00')
-      .style('font-family', 'monospace');
-
-    // Add grid lines - Fixed tickFormat to use null instead of empty string
-    svg.append('g')
-      .attr('class', 'grid')
-      .attr('transform', `translate(0, ${height - 40})`)
-      .call(d3.axisBottom(xScale).tickSize(-height + 80).tickFormat(null))
-      .style('stroke-dasharray', '3,3')
-      .style('opacity', 0.3);
-
-    svg.append('g')
-      .attr('class', 'grid')
-      .attr('transform', 'translate(40, 0)')
-      .call(d3.axisLeft(yScale).tickSize(-width + 80).tickFormat(null))
-      .style('stroke-dasharray', '3,3')
-      .style('opacity', 0.3);
-
-    // Labels
-    svg.append('text')
-      .attr('x', width / 2)
-      .attr('y', height - 5)
-      .attr('text-anchor', 'middle')
-      .style('fill', '#00ff00')
-      .style('font-family', 'monospace')
-      .style('font-size', '12px')
-      .text('Games Played');
-
-    svg.append('text')
-      .attr('transform', 'rotate(-90)')
-      .attr('x', -height / 2)
-      .attr('y', 15)
-      .attr('text-anchor', 'middle')
-      .style('fill', '#00ff00')
-      .style('font-family', 'monospace')
-      .style('font-size', '12px')
-      .text('Win Rate %');
-
-    return svg;
-  }
-
-  // Export/Import model functionality
-  async exportModel(agentType: 'agent1' | 'agent2') {
-    const agent = agentType === 'agent1' ? this.agent1 : this.agent2;
-    if (!agent) return;
-
-    try {
-      // Create a downloadable model file
-      const modelData = {
-        modelWeights: agent.model.getWeights().map(w => w.arraySync()),
-        config: {
-          epsilon: agent.epsilon,
-          totalReward: agent.totalReward,
-          gamesPlayed: agent.gamesPlayed,
-          score: agent.score
-        },
-        exportDate: new Date().toISOString(),
-        agentType: agentType
-      };
-
-      const blob = new Blob([JSON.stringify(modelData, null, 2)], {
-        type: 'application/json'
-      });
-      
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `pong-ai-${agentType}-${Date.now()}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      this.addTrainingLog(`${agentType} model exported successfully`);
-    } catch (error) {
-      console.error('Error exporting model:', error);
-      this.addTrainingLog(`Error exporting ${agentType} model`);
-    }
-  }
-
-  async importModel(agentType: 'agent1' | 'agent2', file: File) {
-    if (!file) return;
-
-    try {
-      this.addTrainingLog(`📥 Importing model for ${agentType}...`);
-      
-      const text = await file.text();
-      const modelData = JSON.parse(text);
-
-      const agent = agentType === 'agent1' ? this.agent1 : this.agent2;
-      if (!agent) {
-        this.addTrainingLog(`❌ Cannot import to ${agentType} - agent not initialized`);
-        return;
-      }
-
-      // Restore weights
-      const weights = modelData.modelWeights.map((w: any) => tf.tensor(w));
-      agent.model.setWeights(weights);
-      agent.targetModel.setWeights(weights);
-
-      // Restore stats if available
-      if (modelData.config) {
-        agent.epsilon = modelData.config.epsilon ?? agent.epsilon;
-        agent.totalReward = modelData.config.totalReward ?? 0;
-        agent.gamesPlayed = modelData.config.gamesPlayed ?? 0;
-        agent.score = modelData.config.score ?? 0;
-      }
-
-      // Cleanup tensors
-      weights.forEach((w: tf.Tensor) => w.dispose());
-
-      this.addTrainingLog(`✅ Model imported successfully for ${agent.name}`);
-      this.addTrainingLog(`📊 Restored stats: ${agent.gamesPlayed} games, ${agent.score} wins`);
-    } catch (error) {
-      console.error('Error importing model:', error);
-      this.addTrainingLog(`❌ Failed to import model for ${agentType}`);
-    }
-  }
-
-  // Reset training progress
-  resetTraining() {
-    this.stopTraining();
-    
-    this.addTrainingLog('🔄 Resetting training session...');
-    
-    // Reset statistics
-    this.stats = {
-      agent1Wins: 0,
-      agent2Wins: 0,
-      totalGames: 0,
-      avgRewardAgent1: 0,
-      avgRewardAgent2: 0,
-      agent1WinRate: 0,
-      agent2WinRate: 0,
-      agent1Rewards: [] as number[],
-      agent2Rewards: [] as number[]
-    };
-
-    // Clear history
-    this.rewardHistory.agent1.length = 0;
-    this.rewardHistory.agent2.length = 0;
-    this.winRateHistory.agent1.length = 0;
-    this.winRateHistory.agent2.length = 0;
-    this.lossHistory.length = 0;
-
-    // Reset game counter
-    this.gameNumber = 0;
-    this.episode = 0;
-
-    // Dispose and recreate agents if they exist
-    if (this.agent1) {
-      this.agent1.model.dispose();
-      this.agent1.targetModel.dispose();
-      this.agent1 = null;
-    }
-    
-    if (this.agent2) {
-      this.agent2.model.dispose();
-      this.agent2.targetModel.dispose();
-      this.agent2 = null;
-    }
-
-    // Clear visualization
-    if (this.networkVisRef?.nativeElement) {
-      d3.select(this.networkVisRef.nativeElement).selectAll('*').remove();
-    }
-
-    this.addTrainingLog('✅ Training session reset complete');
-    this.addTrainingLog('🎯 Ready to start new training session');
-  }
-
-  // Clean up resources
-  private cleanup() {
-    if (this.agent1) {
-      this.agent1.model.dispose();
-      this.agent1.targetModel.dispose();
-    }
-    
-    if (this.agent2) {
-      this.agent2.model.dispose();
-      this.agent2.targetModel.dispose();
-    }
-
-    // Clear D3 visualization
-    if (this.networkVisRef?.nativeElement) {
-      d3.select(this.networkVisRef.nativeElement).selectAll('*').remove();
-    }
-  }
-
-  private updateStats() {
-    if (this.stats.totalGames > 0) {
-      this.stats.agent1WinRate = (this.stats.agent1Wins / this.stats.totalGames) * 100;
-      this.stats.agent2WinRate = (this.stats.agent2Wins / this.stats.totalGames) * 100;
-    }
-
-    if (this.agent1 && this.agent2) {
-      this.stats.avgRewardAgent1 = this.agent1.totalReward / Math.max(1, this.agent1.gamesPlayed);
-      this.stats.avgRewardAgent2 = this.agent2.totalReward / Math.max(1, this.agent2.gamesPlayed);
-    }
-  }
-
-  private resetGame() {
-    this.ball.x = this.canvas.width / 2;
-    this.ball.y = this.canvas.height / 2;
-    this.ball.dx = (Math.random() > 0.5 ? 1 : -1) * 4;
-    this.ball.dy = (Math.random() - 0.5) * 6;
-    
-    this.paddle1.y = (this.canvas.height - this.paddle1.height) / 2;
-    this.paddle2.y = (this.canvas.height - this.paddle2.height) / 2;
   }
 
   private updateVisualization() {
@@ -1093,7 +832,7 @@ export class AiLearningComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   private async updateNetworkVisualization() {
-    if (!this.networkSvg && !this.agent1 && !this.agent2) return;
+    if (!this.networkVisRef?.nativeElement || !this.agent1 || !this.agent2) return;
 
     const state = this.getGameState();
 
@@ -1227,5 +966,408 @@ export class AiLearningComponent implements OnInit, OnDestroy, AfterViewInit {
       epsilon: this.agent2.epsilon.toFixed(3),
       gamesPlayed: this.stats.totalGames
     };
+  }
+
+  getFPS(): number {
+    return this.fps;
+  }
+
+  getTrainingSpeed(): string {
+    return `${this.config.stepsPerFrame * this.config.gameSpeed}x`;
+  }
+
+  private getGameState(): number[] {
+    // Normalize all values to [-1, 1] range
+    return [
+      (this.ball.x / this.canvas.width) * 2 - 1,
+      (this.ball.y / this.canvas.height) * 2 - 1,
+      this.ball.dx / 10,
+      this.ball.dy / 10,
+      (this.paddle1.y / this.canvas.height) * 2 - 1,
+      (this.paddle2.y / this.canvas.height) * 2 - 1,
+      (this.ball.x - this.paddle1.x) / this.canvas.width,
+      (this.ball.x - this.paddle2.x) / this.canvas.width
+    ];
+  }
+
+  // Batched training for better performance
+  private async processBatchedTraining() {
+    if (this.trainingBuffer.length === 0) return;
+
+    // Group by agent
+    const agent1Experiences = this.trainingBuffer.filter(exp => exp.agent.id === 'agent1');
+    const agent2Experiences = this.trainingBuffer.filter(exp => exp.agent.id === 'agent2');
+
+    // Train both agents in parallel
+    const trainingPromises = [];
+    
+    if (agent1Experiences.length >= this.config.batchSize / 2) {
+      trainingPromises.push(this.trainAgentBatched(this.agent1!, agent1Experiences));
+    }
+    
+    if (agent2Experiences.length >= this.config.batchSize / 2) {
+      trainingPromises.push(this.trainAgentBatched(this.agent2!, agent2Experiences));
+    }
+
+    await Promise.all(trainingPromises);
+    
+    // Clear buffer
+    this.trainingBuffer.length = 0;
+  }
+
+  // Optimized training with Double DQN and prioritized replay
+  private async trainAgentBatched(agent: AIAgent, experiences: any[]) {
+    if (experiences.length < 8) return; // Minimum batch size
+
+    // Add experiences to memory
+    experiences.forEach(exp => {
+      agent.memory.push({
+        state: exp.state,
+        action: exp.action,
+        reward: exp.reward,
+        nextState: exp.nextState,
+        done: exp.done
+      });
+      agent.totalReward += exp.reward;
+    });
+
+    // Limit memory size
+    while (agent.memory.length > this.config.memorySize) {
+      agent.memory.shift();
+    }
+
+    if (agent.memory.length < this.config.batchSize) return;
+
+    // Sample batch with prioritized replay
+    const batch = this.config.prioritizedReplay ? 
+      this.samplePrioritizedBatch(agent.memory, Math.min(this.config.batchSize, experiences.length * 2)) :
+      this.sampleBatch(agent.memory, Math.min(this.config.batchSize, experiences.length * 2));
+    
+    const states = batch.map(exp => exp.state);
+    const nextStates = batch.map(exp => exp.nextState);
+
+    // Get predictions in batches
+    const currentQs = agent.model.predict(tf.tensor2d(states), { batchSize: batch.length }) as tf.Tensor;
+    const nextQs = agent.targetModel.predict(tf.tensor2d(nextStates), { batchSize: batch.length }) as tf.Tensor;
+    
+    let nextQsMain: tf.Tensor | null = null;
+    if (this.config.doubleQLearning) {
+      nextQsMain = agent.model.predict(tf.tensor2d(nextStates), { batchSize: batch.length }) as tf.Tensor;
+    }
+    
+    const currentQsArray = await currentQs.data();
+    const nextQsArray = await nextQs.data();
+    const nextQsMainArray = nextQsMain ? await nextQsMain.data() : null;
+
+    // Prepare training data with Double DQN
+    const trainX: number[][] = [];
+    const trainY: number[][] = [];
+
+    for (let i = 0; i < batch.length; i++) {
+      const exp = batch[i];
+      const currentQ = Array.from(currentQsArray.slice(i * 3, (i + 1) * 3));
+      const nextQ = Array.from(nextQsArray.slice(i * 3, (i + 1) * 3));
+      
+      let targetQ = exp.reward;
+      if (!exp.done) {
+        if (this.config.doubleQLearning && nextQsMainArray) {
+          // Double DQN: use main network to select action, target network to evaluate
+          const nextQMain = Array.from(nextQsMainArray.slice(i * 3, (i + 1) * 3));
+          const bestAction = nextQMain.indexOf(Math.max(...nextQMain));
+          targetQ = exp.reward + 0.99 * nextQ[bestAction]; // Higher gamma for better long-term planning
+        } else {
+          targetQ = exp.reward + 0.99 * Math.max(...nextQ);
+        }
+      }
+      
+      currentQ[exp.action] = targetQ;
+      trainX.push(exp.state);
+      trainY.push(currentQ);
+    }
+
+    // Train with optimized settings
+    const xs = tf.tensor2d(trainX);
+    const ys = tf.tensor2d(trainY);
+    
+    await agent.model.fit(xs, ys, { 
+      epochs: 1, 
+      verbose: 0,
+      batchSize: Math.min(32, batch.length),
+      shuffle: true
+    });
+
+    // Cleanup tensors
+    currentQs.dispose();
+    nextQs.dispose();
+    if (nextQsMain) nextQsMain.dispose();
+    xs.dispose();
+    ys.dispose();
+
+    // Faster epsilon decay
+    agent.epsilon = Math.max(this.config.epsilonMin, agent.epsilon * this.config.epsilonDecay);
+  }
+
+  // Prioritized experience replay
+  private samplePrioritizedBatch(memory: Experience[], batchSize: number): Experience[] {
+    // Simple prioritized sampling - prefer recent experiences and high rewards
+    const recentExperiences = memory.slice(-Math.floor(memory.length * 0.3));
+    const highRewardExperiences = memory.filter(exp => Math.abs(exp.reward) > 1.0);
+    
+    const prioritizedPool = [...recentExperiences, ...highRewardExperiences];
+    
+    const batch: Experience[] = [];
+    for (let i = 0; i < Math.min(batchSize, prioritizedPool.length); i++) {
+      const randomIndex = Math.floor(Math.random() * prioritizedPool.length);
+      batch.push(prioritizedPool[randomIndex]);
+    }
+    
+    // Fill remaining with random samples if needed
+    while (batch.length < batchSize && batch.length < memory.length) {
+      const randomIndex = Math.floor(Math.random() * memory.length);
+      batch.push(memory[randomIndex]);
+    }
+    
+    return batch;
+  }
+
+  // FPS tracking
+  private updateFPS(startTime: number) {
+    const currentTime = performance.now();
+    const deltaTime = currentTime - this.lastFrameTime;
+    
+    if (deltaTime > 0) {
+      this.fps = Math.round(1000 / deltaTime);
+    }
+    
+    this.lastFrameTime = currentTime;
+  }
+
+  private resetGame() {
+    this.ball.x = this.canvas.width / 2;
+    this.ball.y = this.canvas.height / 2;
+    this.ball.dx = (Math.random() > 0.5 ? 1 : -1) * 8; // Faster initial speed
+    this.ball.dy = (Math.random() - 0.5) * 8;
+    
+    this.paddle1.y = (this.canvas.height - this.paddle1.height) / 2;
+    this.paddle2.y = (this.canvas.height - this.paddle2.height) / 2;
+    
+    // Clear action caches for new game
+    if (this.agent1) this.agent1.actionCache.clear();
+    if (this.agent2) this.agent2.actionCache.clear();
+  }
+
+  // Enhanced configuration update methods
+  updateLearningRate(value: number) {
+    this.config.learningRate = value;
+    this.addTrainingLog(`Learning rate updated to ${value.toFixed(4)}`);
+    if (this.agent1 && this.agent2) {
+      // Recompile models with new learning rate
+      const optimizer = tf.train.adam(this.config.learningRate, 0.9, 0.999, 1e-7);
+      this.agent1.model.compile({ optimizer, loss: 'huberLoss', metrics: ['mse'] });
+      this.agent2.model.compile({ optimizer, loss: 'huberLoss', metrics: ['mse'] });
+    }
+  }
+
+  updateGameSpeed(value: number) {
+    this.config.gameSpeed = value;
+    this.addTrainingLog(`Game speed updated to ${value}x`);
+  }
+
+  updateStepsPerFrame(value: number) {
+    this.config.stepsPerFrame = value;
+    this.addTrainingLog(`Steps per frame updated to ${value}`);
+  }
+
+  // Add training log entry
+  addTrainingLog(message: string) {
+    const log: TrainingLog = {
+      timestamp: new Date().toLocaleTimeString(),
+      gameNumber: this.gameNumber,
+      agent1Score: this.agent1?.score ?? 0,
+      agent2Score: this.agent2?.score ?? 0,
+      agent1Reward: this.agent1?.totalReward ?? 0,
+      agent2Reward: this.agent2?.totalReward ?? 0,
+      agent1Epsilon: this.agent1?.epsilon ?? 0,
+      agent2Epsilon: this.agent2?.epsilon ?? 0,
+      message: message
+    };
+
+    this.trainingLogs.unshift(log);
+    
+    // Keep only the last maxLogs entries
+    if (this.trainingLogs.length > this.maxLogs) {
+      this.trainingLogs = this.trainingLogs.slice(0, this.maxLogs);
+    }
+  }
+
+  private updateStats() {
+    if (this.stats.totalGames > 0) {
+      this.stats.agent1WinRate = (this.stats.agent1Wins / this.stats.totalGames) * 100;
+      this.stats.agent2WinRate = (this.stats.agent2Wins / this.stats.totalGames) * 100;
+    }
+
+    if (this.agent1 && this.agent2) {
+      this.stats.avgRewardAgent1 = this.agent1.totalReward / Math.max(1, this.agent1.gamesPlayed);
+      this.stats.avgRewardAgent2 = this.agent2.totalReward / Math.max(1, this.agent2.gamesPlayed);
+    }
+  }
+
+  // Export/Import model functionality
+  async exportModel(agentType: 'agent1' | 'agent2') {
+    const agent = agentType === 'agent1' ? this.agent1 : this.agent2;
+    if (!agent) return;
+
+    try {
+      // Create a downloadable model file
+      const modelData = {
+        modelWeights: agent.model.getWeights().map(w => w.arraySync()),
+        config: {
+          epsilon: agent.epsilon,
+          totalReward: agent.totalReward,
+          gamesPlayed: agent.gamesPlayed,
+          score: agent.score
+        },
+        exportDate: new Date().toISOString(),
+        agentType: agentType
+      };
+
+      const blob = new Blob([JSON.stringify(modelData, null, 2)], {
+        type: 'application/json'
+      });
+      
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `pong-ai-${agentType}-${Date.now()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      this.addTrainingLog(`${agentType} model exported successfully`);
+    } catch (error) {
+      console.error('Error exporting model:', error);
+      this.addTrainingLog(`Error exporting ${agentType} model`);
+    }
+  }
+
+  async importModel(agentType: 'agent1' | 'agent2', file: File) {
+    if (!file) return;
+
+    try {
+      this.addTrainingLog(`📥 Importing model for ${agentType}...`);
+      
+      const text = await file.text();
+      const modelData = JSON.parse(text);
+
+      const agent = agentType === 'agent1' ? this.agent1 : this.agent2;
+      if (!agent) {
+        this.addTrainingLog(`❌ Cannot import to ${agentType} - agent not initialized`);
+        return;
+      }
+
+      // Restore weights
+      const weights = modelData.modelWeights.map((w: any) => tf.tensor(w));
+      agent.model.setWeights(weights);
+      agent.targetModel.setWeights(weights);
+
+      // Restore stats if available
+      if (modelData.config) {
+        agent.epsilon = modelData.config.epsilon ?? agent.epsilon;
+        agent.totalReward = modelData.config.totalReward ?? 0;
+        agent.gamesPlayed = modelData.config.gamesPlayed ?? 0;
+        agent.score = modelData.config.score ?? 0;
+      }
+
+      // Cleanup tensors
+      weights.forEach((w: tf.Tensor) => w.dispose());
+
+      this.addTrainingLog(`✅ Model imported successfully for ${agent.name}`);
+      this.addTrainingLog(`📊 Restored stats: ${agent.gamesPlayed} games, ${agent.score} wins`);
+    } catch (error) {
+      console.error('Error importing model:', error);
+      this.addTrainingLog(`❌ Failed to import model for ${agentType}`);
+    }
+  }
+
+  // Reset training progress
+  resetTraining() {
+    this.stopTraining();
+    
+    this.addTrainingLog('🔄 Resetting training session...');
+    
+    // Reset statistics
+    this.stats = {
+      agent1Wins: 0,
+      agent2Wins: 0,
+      totalGames: 0,
+      avgRewardAgent1: 0,
+      avgRewardAgent2: 0,
+      agent1WinRate: 0,
+      agent2WinRate: 0,
+      agent1Rewards: [] as number[],
+      agent2Rewards: [] as number[]
+    };
+
+    // Clear history
+    this.rewardHistory.agent1.length = 0;
+    this.rewardHistory.agent2.length = 0;
+    this.winRateHistory.agent1.length = 0;
+    this.winRateHistory.agent2.length = 0;
+    this.lossHistory.length = 0;
+
+    // Reset game counter
+    this.gameNumber = 0;
+    this.episode = 0;
+
+    // Dispose and recreate agents if they exist
+    if (this.agent1) {
+      this.agent1.model.dispose();
+      this.agent1.targetModel.dispose();
+      this.agent1 = null;
+    }
+    
+    if (this.agent2) {
+      this.agent2.model.dispose();
+      this.agent2.targetModel.dispose();
+      this.agent2 = null;
+    }
+
+    // Clear visualization
+    if (this.networkVisRef?.nativeElement) {
+      d3.select(this.networkVisRef.nativeElement).selectAll('*').remove();
+    }
+
+    this.addTrainingLog('✅ Training session reset complete');
+    this.addTrainingLog('🎯 Ready to start new training session');
+  }
+
+  // Navigate back to menu
+  goBackToMenu() {
+    this.stopTraining();
+    this.backToMenu.emit();
+  }
+
+  // TrackBy function for ngFor performance
+  trackByIndex(index: number, item: any): number {
+    return index;
+  }
+
+  // Clean up resources
+  private cleanup() {
+    if (this.agent1) {
+      this.agent1.model.dispose();
+      this.agent1.targetModel.dispose();
+    }
+    
+    if (this.agent2) {
+      this.agent2.model.dispose();
+      this.agent2.targetModel.dispose();
+    }
+
+    // Clear D3 visualization
+    if (this.networkVisRef?.nativeElement) {
+      d3.select(this.networkVisRef.nativeElement).selectAll('*').remove();
+    }
   }
 }

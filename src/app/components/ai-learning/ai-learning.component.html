@@ -30,12 +30,25 @@
           <input type="range" 
                  id="game-speed"
                  min="1" 
-                 max="10" 
+                 max="20" 
                  step="1" 
                  [value]="config.gameSpeed"
                  (input)="updateGameSpeed(+$any($event.target).value)"
                  class="slider">
           <span class="value-display">{{ config.gameSpeed }}x</span>
+        </div>
+
+        <div class="control-group">
+          <label for="steps-per-frame">Steps Per Frame</label>
+          <input type="range" 
+                 id="steps-per-frame"
+                 min="1" 
+                 max="50" 
+                 step="1" 
+                 [value]="config.stepsPerFrame"
+                 (input)="updateStepsPerFrame(+$any($event.target).value)"
+                 class="slider">
+          <span class="value-display">{{ config.stepsPerFrame }}x</span>
         </div>
         
         <div class="control-group">
@@ -60,6 +73,19 @@
                  [(ngModel)]="config.episodes"
                  class="number-input">
         </div>
+
+        <div class="control-group">
+          <label for="batch-size">Batch Size</label>
+          <input type="range" 
+                 id="batch-size"
+                 min="16" 
+                 max="128" 
+                 step="16" 
+                 [value]="config.batchSize"
+                 (input)="config.batchSize = +$any($event.target).value"
+                 class="slider">
+          <span class="value-display">{{ config.batchSize }}</span>
+        </div>
       </div>
       
       <div class="action-buttons">
@@ -79,6 +105,44 @@
                 (click)="resetTraining()">
           🔄 RESET
         </button>
+      </div>
+    </div>
+
+    <!-- Performance Monitor -->
+    <div class="control-section">
+      <h3>⚡ PERFORMANCE MONITOR</h3>
+      <div class="performance-stats">
+        <div class="perf-item">
+          <span class="perf-label">FPS:</span>
+          <span class="perf-value">{{ getFPS() }}</span>
+        </div>
+        <div class="perf-item">
+          <span class="perf-label">Training Speed:</span>
+          <span class="perf-value">{{ getTrainingSpeed() }}</span>
+        </div>
+        <div class="perf-item">
+          <span class="perf-label">Double DQN:</span>
+          <span class="perf-value">{{ config.doubleQLearning ? '✅' : '❌' }}</span>
+        </div>
+        <div class="perf-item">
+          <span class="perf-label">Prioritized Replay:</span>
+          <span class="perf-value">{{ config.prioritizedReplay ? '✅' : '❌' }}</span>
+        </div>
+      </div>
+      
+      <div class="optimization-toggles">
+        <label class="toggle-label">
+          <input type="checkbox" 
+                 [(ngModel)]="config.doubleQLearning"
+                 (change)="addTrainingLog('Double DQN toggled: ' + config.doubleQLearning)">
+          Enable Double DQN
+        </label>
+        <label class="toggle-label">
+          <input type="checkbox" 
+                 [(ngModel)]="config.prioritizedReplay"
+                 (change)="addTrainingLog('Prioritized Replay toggled: ' + config.prioritizedReplay)">
+          Prioritized Experience Replay
+        </label>
       </div>
     </div>
 

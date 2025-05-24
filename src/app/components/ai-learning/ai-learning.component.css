@@ -283,11 +283,13 @@
   display: inline-block;
   text-align: center;
   box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);
+  font-size: 0.9rem;
 }
 
 .file-input-label:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(108, 117, 125, 0.4);
+  background: linear-gradient(45deg, #7c8591, #969ea6);
 }
 
 .file-input {
@@ -688,6 +690,240 @@
 
 .chart-placeholder p {
   margin: 0.5rem 0;
+}
+
+/* Performance Monitor Section */
+.performance-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 10px;
+  border: 1px solid #333;
+}
+
+.perf-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem;
+  background: rgba(0, 255, 0, 0.05);
+  border-radius: 5px;
+  border: 1px solid rgba(0, 255, 0, 0.2);
+}
+
+.perf-label {
+  color: #ccc;
+  font-size: 0.9rem;
+  font-weight: bold;
+}
+
+.perf-value {
+  color: #00ff00;
+  font-weight: bold;
+  font-size: 1rem;
+  text-shadow: 0 0 5px rgba(0, 255, 0, 0.3);
+}
+
+.optimization-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 10px;
+  border: 1px solid #333;
+}
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: #ccc;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: color 0.3s ease;
+}
+
+.toggle-label:hover {
+  color: #00ff00;
+}
+
+.toggle-label input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  accent-color: #00ff00;
+  cursor: pointer;
+}
+
+/* Enhanced control sections */
+.control-section {
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.control-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+/* Model Management specific styles */
+.model-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.export-controls, .import-controls {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.file-input-label {
+  background: linear-gradient(45deg, #6c757d, #868e96);
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: bold;
+  display: inline-block;
+  text-align: center;
+  box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);
+  font-size: 0.9rem;
+}
+
+.file-input-label:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(108, 117, 125, 0.4);
+  background: linear-gradient(45deg, #7c8591, #969ea6);
+}
+
+.file-input {
+  display: none;
+}
+
+/* High performance indicators */
+.perf-value.high-fps {
+  color: #2ecc71;
+  animation: pulse 1s ease-in-out infinite alternate;
+}
+
+.perf-value.medium-fps {
+  color: #f39c12;
+}
+
+.perf-value.low-fps {
+  color: #e74c3c;
+}
+
+@keyframes pulse {
+  from { opacity: 0.8; }
+  to { opacity: 1; }
+}
+
+/* Training speed indicator */
+.training-speed-high {
+  color: #e74c3c;
+  font-weight: bold;
+  text-shadow: 0 0 10px rgba(231, 76, 60, 0.5);
+}
+
+.training-speed-medium {
+  color: #f39c12;
+  font-weight: bold;
+  text-shadow: 0 0 10px rgba(243, 156, 18, 0.5);
+}
+
+.training-speed-low {
+  color: #2ecc71;
+  font-weight: bold;
+  text-shadow: 0 0 10px rgba(46, 204, 113, 0.5);
+}
+
+/* Enhanced checkbox styling for optimization toggles */
+.toggle-label input[type="checkbox"] {
+  position: relative;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #00ff00;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.toggle-label input[type="checkbox"]:checked {
+  background: #00ff00;
+  box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+}
+
+.toggle-label input[type="checkbox"]:checked::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #000;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.toggle-label input[type="checkbox"]:hover {
+  box-shadow: 0 0 15px rgba(0, 255, 0, 0.3);
+}
+
+/* Loading states for performance indicators */
+.perf-value.loading {
+  color: #666;
+}
+
+.perf-value.loading::after {
+  content: '...';
+  animation: dots 1.5s steps(4, end) infinite;
+}
+
+@keyframes dots {
+  0%, 20% { content: ''; }
+  40% { content: '.'; }
+  60% { content: '..'; }
+  80%, 100% { content: '...'; }
+}
+
+/* Responsive adjustments for performance monitor */
+@media (max-width: 768px) {
+  .performance-stats {
+    grid-template-columns: 1fr;
+  }
+  
+  .optimization-toggles {
+    gap: 0.5rem;
+  }
+  
+  .export-controls, .import-controls {
+    flex-direction: column;
+    align-items: center;
+  }
+}
+
+/* Enhanced visual feedback for active training */
+.control-panel.training-active {
+  border-color: #00ff00;
+  box-shadow: 0 0 30px rgba(0, 255, 0, 0.2);
+  animation: trainingGlow 2s ease-in-out infinite alternate;
+}
+
+@keyframes trainingGlow {
+  from { box-shadow: 0 0 30px rgba(0, 255, 0, 0.2); }
+  to { box-shadow: 0 0 50px rgba(0, 255, 0, 0.4); }
 }
 
 /* Responsive Design */
