@@ -113,7 +113,9 @@ export class AiLearningComponent implements OnInit, OnDestroy, AfterViewInit {
     avgRewardAgent1: 0,
     avgRewardAgent2: 0,
     agent1WinRate: 0,
-    agent2WinRate: 0
+    agent2WinRate: 0,
+    agent1Rewards: [] as number[],
+    agent2Rewards: [] as number[]
   };
 
   // Visualization
@@ -780,7 +782,9 @@ export class AiLearningComponent implements OnInit, OnDestroy, AfterViewInit {
       avgRewardAgent1: 0,
       avgRewardAgent2: 0,
       agent1WinRate: 0,
-      agent2WinRate: 0
+      agent2WinRate: 0,
+      agent1Rewards: [] as number[],
+      agent2Rewards: [] as number[]
     };
 
     // Clear history
@@ -916,155 +920,312 @@ export class AiLearningComponent implements OnInit, OnDestroy, AfterViewInit {
     const container = d3.select(this.networkVisRef.nativeElement);
     container.selectAll('*').remove();
 
-    const width = 800;
-    const height = 300;
+    // Create two network visualizations side by side
+    const containerWidth = 1000;
+    const containerHeight = 400;
+    const networkWidth = 450;
+    const networkHeight = 350;
 
-    this.networkSvg = container.append('svg')
-      .attr('width', width)
-      .attr('height', height)
+    // Main container
+    const mainSvg = container.append('svg')
+      .attr('width', containerWidth)
+      .attr('height', containerHeight)
       .style('background', 'rgba(15, 15, 35, 0.8)')
       .style('border', '2px solid #00ff00')
       .style('border-radius', '15px');
 
-    // Create network nodes
+    // Agent 1 Network (Left side)
+    const agent1Group = mainSvg.append('g')
+      .attr('transform', 'translate(25, 25)');
+
+    this.createAgentNetwork(agent1Group, networkWidth, networkHeight, 'agent1', '#ff4444');
+
+    // Agent 2 Network (Right side)
+    const agent2Group = mainSvg.append('g')
+      .attr('transform', `translate(${25 + networkWidth + 50}, 25)`);
+
+    this.createAgentNetwork(agent2Group, networkWidth, networkHeight, 'agent2', '#4444ff');
+
+    // Add title
+    mainSvg.append('text')
+      .attr('x', containerWidth / 2)
+      .attr('y', 20)
+      .attr('text-anchor', 'middle')
+      .style('fill', '#00ff00')
+      .style('font-family', 'monospace')
+      .style('font-size', '16px')
+      .style('font-weight', 'bold')
+      .text('🧠 REAL-TIME NEURAL NETWORK VISUALIZATION');
+  }
+
+  private createAgentNetwork(container: any, width: number, height: number, agentId: string, color: string) {
+    const layers = [8, 32, 16, 3]; // Simplified for better visualization
+    const nodeRadius = 6;
+    const layerSpacing = width / (layers.length + 1);
+    
+    // Agent title
+    container.append('text')
+      .attr('x', width / 2)
+      .attr('y', 15)
+      .attr('text-anchor', 'middle')
+      .style('fill', color)
+      .style('font-family', 'monospace')
+      .style('font-size', '14px')
+      .style('font-weight', 'bold')
+      .text(`${agentId === 'agent1' ? 'RED AI' : 'BLUE AI'} BRAIN`);
+
+    // Create nodes and links
     const nodes: any[] = [];
     const links: any[] = [];
 
-    for (let layerIndex = 0; layerIndex < this.networkConfig.layers.length; layerIndex++) {
-      const layerSize = this.networkConfig.layers[layerIndex];
-      const x = 60 + layerIndex * this.networkConfig.layerSpacing;
+    // Generate nodes
+    for (let layerIndex = 0; layerIndex < layers.length; layerIndex++) {
+      const layerSize = layerIndex === 1 ? 8 : layers[layerIndex]; // Limit middle layers for visualization
+      const x = (layerIndex + 1) * layerSpacing;
+      const startY = (height - (layerSize - 1) * 25) / 2;
 
       for (let nodeIndex = 0; nodeIndex < layerSize; nodeIndex++) {
-        const y = height / 2 - (layerSize - 1) * this.networkConfig.nodeSpacing / 2 + nodeIndex * this.networkConfig.nodeSpacing;
+        const y = startY + nodeIndex * 25;
         
         nodes.push({
-          id: `${layerIndex}-${nodeIndex}`,
+          id: `${agentId}-${layerIndex}-${nodeIndex}`,
           x: x,
           y: y,
           layer: layerIndex,
           index: nodeIndex,
-          radius: this.networkConfig.nodeRadius
+          agentId: agentId,
+          activation: 0
         });
 
         // Create links to next layer
-        if (layerIndex < this.networkConfig.layers.length - 1) {
-          const nextLayerSize = this.networkConfig.layers[layerIndex + 1];
+        if (layerIndex < layers.length - 1) {
+          const nextLayerSize = layerIndex + 1 === 1 ? 8 : layers[layerIndex + 1];
           for (let nextNodeIndex = 0; nextNodeIndex < nextLayerSize; nextNodeIndex++) {
             links.push({
-              source: `${layerIndex}-${nodeIndex}`,
-              target: `${layerIndex + 1}-${nextNodeIndex}`,
-              weight: Math.random()
+              id: `${agentId}-link-${layerIndex}-${nodeIndex}-${nextNodeIndex}`,
+              source: `${agentId}-${layerIndex}-${nodeIndex}`,
+              target: `${agentId}-${layerIndex + 1}-${nextNodeIndex}`,
+              weight: (Math.random() - 0.5) * 2,
+              agentId: agentId
             });
           }
         }
       }
     }
 
-    // Draw links
-    this.networkSvg.selectAll('.link')
+    // Draw connections first (so they appear behind nodes)
+    container.selectAll('.network-link')
       .data(links)
       .enter()
       .append('line')
-      .attr('class', 'link')
-      .attr('x1', (d: any) => nodes.find(n => n.id === d.source)?.x ?? 0)
-      .attr('y1', (d: any) => nodes.find(n => n.id === d.source)?.y ?? 0)
-      .attr('x2', (d: any) => nodes.find(n => n.id === d.target)?.x ?? 0)
-      .attr('y2', (d: any) => nodes.find(n => n.id === d.target)?.y ?? 0)
+      .attr('class', `network-link ${agentId}-link`)
+      .attr('x1', (d: any) => nodes.find(n => n.id === d.source)?.x || 0)
+      .attr('y1', (d: any) => nodes.find(n => n.id === d.source)?.y || 0)
+      .attr('x2', (d: any) => nodes.find(n => n.id === d.target)?.x || 0)
+      .attr('y2', (d: any) => nodes.find(n => n.id === d.target)?.y || 0)
       .attr('stroke', '#666')
       .attr('stroke-width', 1)
-      .attr('stroke-opacity', 0.3);
+      .attr('stroke-opacity', 0.2);
 
     // Draw nodes
-    this.networkSvg.selectAll('.node')
+    container.selectAll('.network-node')
       .data(nodes)
       .enter()
       .append('circle')
-      .attr('class', 'node')
+      .attr('class', `network-node ${agentId}-node`)
       .attr('cx', (d: any) => d.x)
       .attr('cy', (d: any) => d.y)
-      .attr('r', (d: any) => d.radius)
-      .attr('fill', '#4a90e2')
-      .attr('stroke', '#00ff00')
+      .attr('r', nodeRadius)
+      .attr('fill', '#333')
+      .attr('stroke', color)
       .attr('stroke-width', 1);
 
-    // Add layer labels
-    const layerLabels = ['Input', 'Hidden 1', 'Hidden 2', 'Hidden 3', 'Output'];
-    for (let i = 0; i < this.networkConfig.layers.length; i++) {
-      this.networkSvg.append('text')
-        .attr('x', 60 + i * this.networkConfig.layerSpacing)
-        .attr('y', 30)
-        .attr('text-anchor', 'middle')
-        .style('fill', '#00ff00')
+    // Add input labels
+    const inputLabels = ['Ball X', 'Ball Y', 'Ball ΔX', 'Ball ΔY', 'My Paddle', 'Enemy Paddle', 'Distance X', 'Distance Y'];
+    nodes.filter(n => n.layer === 0).forEach((node, i) => {
+      container.append('text')
+        .attr('x', node.x - 45)
+        .attr('y', node.y + 3)
+        .attr('text-anchor', 'end')
+        .style('fill', '#ccc')
         .style('font-family', 'monospace')
-        .style('font-size', '12px')
-        .text(layerLabels[i] || `Layer ${i + 1}`);
+        .style('font-size', '8px')
+        .text(inputLabels[i] || `Input ${i + 1}`);
+    });
+
+    // Add output labels
+    const outputLabels = ['Move Up', 'Stay', 'Move Down'];
+    nodes.filter(n => n.layer === layers.length - 1).forEach((node, i) => {
+      container.append('text')
+        .attr('x', node.x + 15)
+        .attr('y', node.y + 3)
+        .attr('text-anchor', 'start')
+        .style('fill', '#ccc')
+        .style('font-family', 'monospace')
+        .style('font-size', '8px')
+        .text(outputLabels[i] || `Output ${i + 1}`);
+    });
+
+    // Add layer labels
+    const layerLabels = ['INPUTS', 'HIDDEN', 'HIDDEN', 'ACTIONS'];
+    for (let i = 0; i < layers.length; i++) {
+      container.append('text')
+        .attr('x', (i + 1) * layerSpacing)
+        .attr('y', height - 10)
+        .attr('text-anchor', 'middle')
+        .style('fill', color)
+        .style('font-family', 'monospace')
+        .style('font-size', '10px')
+        .style('font-weight', 'bold')
+        .text(layerLabels[i]);
     }
+
+    // Add activation indicator
+    container.append('text')
+      .attr('class', `${agentId}-activation-text`)
+      .attr('x', width / 2)
+      .attr('y', height + 15)
+      .attr('text-anchor', 'middle')
+      .style('fill', color)
+      .style('font-family', 'monospace')
+      .style('font-size', '10px')
+      .text('Thinking...');
   }
 
-  private updateNetworkVisualization() {
-    if (!this.networkSvg) return;
+  private async updateNetworkVisualization() {
+    if (!this.networkSvg && !this.agent1 && !this.agent2) return;
 
     const state = this.getGameState();
 
-    // Update input layer activations
-    this.networkSvg.selectAll('.node')
+    // Get actual predictions from both agents if they exist
+    let agent1Predictions: number[] = [];
+    let agent2Predictions: number[] = [];
+
+    try {
+      if (this.agent1) {
+        const stateTensor = tf.tensor2d([state]);
+        const predictions = this.agent1.model.predict(stateTensor) as tf.Tensor;
+        agent1Predictions = Array.from(await predictions.data());
+        stateTensor.dispose();
+        predictions.dispose();
+      }
+
+      if (this.agent2) {
+        const stateTensor = tf.tensor2d([state]);
+        const predictions = this.agent2.model.predict(stateTensor) as tf.Tensor;
+        agent2Predictions = Array.from(await predictions.data());
+        stateTensor.dispose();
+        predictions.dispose();
+      }
+    } catch (error) {
+      console.warn('Error getting network predictions:', error);
+    }
+
+    // Update Agent 1 network
+    this.updateAgentVisualization('agent1', state, agent1Predictions, '#ff4444');
+    
+    // Update Agent 2 network  
+    this.updateAgentVisualization('agent2', state, agent2Predictions, '#4444ff');
+  }
+
+  private updateAgentVisualization(agentId: string, state: number[], predictions: number[], color: string) {
+    const svg = d3.select(this.networkVisRef.nativeElement).select('svg');
+
+    // Update input layer with actual game state
+    svg.selectAll(`.${agentId}-node`)
       .filter((d: any) => d.layer === 0)
       .transition()
       .duration(100)
       .attr('fill', (d: any) => {
         const activation = Math.abs(state[d.index] || 0);
-        return d3.interpolateViridis(activation);
+        const intensity = Math.min(activation, 1);
+        return d3.interpolateRgb('#000', color)(intensity * 0.8 + 0.2);
+      })
+      .attr('r', (d: any) => {
+        const activation = Math.abs(state[d.index] || 0);
+        return 6 + activation * 3; // Pulse based on activation
       });
 
-    // Simulate hidden layer activations with some randomness
-    this.networkSvg.selectAll('.node')
-      .filter((d: any) => d.layer > 0 && d.layer < this.networkConfig.layers.length - 1)
-      .transition()
-      .duration(200)
-      .attr('fill', (d: any) => {
-        const activation = Math.random() * 0.8 + 0.2; // More realistic activation
-        return d3.interpolateViridis(activation);
-      });
-
-    // Update output layer based on agent's last action
-    const lastAction = this.getLastAction();
-    this.networkSvg.selectAll('.node')
-      .filter((d: any) => d.layer === this.networkConfig.layers.length - 1)
+    // Update hidden layers with simulated activations based on input
+    svg.selectAll(`.${agentId}-node`)
+      .filter((d: any) => d.layer > 0 && d.layer < 3)
       .transition()
       .duration(150)
       .attr('fill', (d: any) => {
-        const activation = d.index === lastAction ? 1.0 : 0.3;
-        return d3.interpolateViridis(activation);
+        // Simulate realistic hidden layer activations
+        const baseActivation = state.reduce((sum, val, i) => sum + Math.abs(val) * Math.sin(i + d.index), 0) / state.length;
+        const activation = Math.abs(Math.sin(baseActivation + Date.now() / 1000 + d.index)) * 0.7 + 0.3;
+        return d3.interpolateRgb('#000', color)(activation);
       })
-      .attr('stroke-width', (d: any) => d.index === lastAction ? 3 : 1);
+      .attr('r', 6);
 
-    // Update link weights visualization
-    this.networkSvg.selectAll('.link')
+    // Update output layer with actual predictions
+    if (predictions.length >= 3) {
+      const maxPrediction = Math.max(...predictions);
+      const chosenAction = predictions.indexOf(maxPrediction);
+
+      svg.selectAll(`.${agentId}-node`)
+        .filter((d: any) => d.layer === 3)
+        .transition()
+        .duration(100)
+        .attr('fill', (d: any) => {
+          const prediction = predictions[d.index] || 0;
+          const normalized = (prediction + 10) / 20; // Normalize Q-values roughly to 0-1
+          const intensity = Math.max(0, Math.min(1, normalized));
+          return d3.interpolateRgb('#000', color)(intensity);
+        })
+        .attr('r', (d: any) => {
+          const isChosen = d.index === chosenAction;
+          return isChosen ? 10 : 6; // Highlight chosen action
+        })
+        .attr('stroke-width', (d: any) => {
+          const isChosen = d.index === chosenAction;
+          return isChosen ? 3 : 1;
+        });
+
+      // Update action text
+      const actionNames = ['Moving Up', 'Staying', 'Moving Down'];
+      svg.select(`.${agentId}-activation-text`)
+        .text(`Decision: ${actionNames[chosenAction]} (Q: ${maxPrediction.toFixed(2)})`);
+    }
+
+    // Update connection weights to show information flow
+    svg.selectAll(`.${agentId}-link`)
       .transition()
-      .duration(300)
-      .attr('stroke-opacity', () => 0.3 + Math.random() * 0.4);
+      .duration(200)
+      .attr('stroke-opacity', () => 0.1 + Math.random() * 0.3)
+      .attr('stroke-width', () => 0.5 + Math.random() * 1.5)
+      .attr('stroke', () => {
+        const intensity = Math.random();
+        return intensity > 0.7 ? color : '#666';
+      });
   }
 
-  // Enhanced statistics display
   getAgent1Stats() {
-    return this.agent1 ? {
-      name: this.agent1.name,
-      wins: this.agent1.score,
-      winRate: this.stats.agent1WinRate.toFixed(1),
-      avgReward: this.stats.avgRewardAgent1.toFixed(2),
+    if (!this.agent1) return null;
+    
+    return {
+      name: 'RED AI',
+      wins: this.stats.agent1Wins,
+      winRate: this.stats.totalGames > 0 ? ((this.stats.agent1Wins / this.stats.totalGames) * 100).toFixed(1) : '0.0',
+      avgReward: this.stats.agent1Rewards.length > 0 ? 
+        (this.stats.agent1Rewards.reduce((a, b) => a + b, 0) / this.stats.agent1Rewards.length).toFixed(2) : '0.00',
       epsilon: this.agent1.epsilon.toFixed(3),
-      gamesPlayed: this.agent1.gamesPlayed
-    } : null;
+      gamesPlayed: this.stats.totalGames
+    };
   }
 
   getAgent2Stats() {
-    return this.agent2 ? {
-      name: this.agent2.name,
-      wins: this.agent2.score,
-      winRate: this.stats.agent2WinRate.toFixed(1),
-      avgReward: this.stats.avgRewardAgent2.toFixed(2),
+    if (!this.agent2) return null;
+    
+    return {
+      name: 'BLUE AI',
+      wins: this.stats.agent2Wins,
+      winRate: this.stats.totalGames > 0 ? ((this.stats.agent2Wins / this.stats.totalGames) * 100).toFixed(1) : '0.0',
+      avgReward: this.stats.agent2Rewards.length > 0 ? 
+        (this.stats.agent2Rewards.reduce((a, b) => a + b, 0) / this.stats.agent2Rewards.length).toFixed(2) : '0.00',
       epsilon: this.agent2.epsilon.toFixed(3),
-      gamesPlayed: this.agent2.gamesPlayed
-    } : null;
+      gamesPlayed: this.stats.totalGames
+    };
   }
 }
