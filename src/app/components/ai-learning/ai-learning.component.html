@@ -310,7 +310,7 @@
     <h3>📝 TRAINING LOGS</h3>
     <div class="logs-container">
       <div class="log-entry" *ngFor="let log of trainingLogs; trackBy: trackByIndex">
-        <span class="log-timestamp">{{ log.timestamp | date:'HH:mm:ss' }}</span>
+        <span class="log-timestamp">{{ log.timestamp }}</span>
         <span class="log-message">{{ log.message }}</span>
       </div>
     </div>

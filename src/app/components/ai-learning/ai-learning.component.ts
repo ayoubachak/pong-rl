@@ -214,7 +214,7 @@ export class AiLearningComponent implements OnInit, OnDestroy, AfterViewInit {
 
     model.compile({
       optimizer: tf.train.adam(this.config.learningRate, 0.9, 0.999, 1e-7), // Optimized Adam
-      loss: 'huberLoss', // More stable than MSE
+      loss: 'meanSquaredError', // Changed to standard MSE loss function
       metrics: ['mse']
     });
 
@@ -1163,8 +1163,8 @@ export class AiLearningComponent implements OnInit, OnDestroy, AfterViewInit {
     if (this.agent1 && this.agent2) {
       // Recompile models with new learning rate
       const optimizer = tf.train.adam(this.config.learningRate, 0.9, 0.999, 1e-7);
-      this.agent1.model.compile({ optimizer, loss: 'huberLoss', metrics: ['mse'] });
-      this.agent2.model.compile({ optimizer, loss: 'huberLoss', metrics: ['mse'] });
+      this.agent1.model.compile({ optimizer, loss: 'meanSquaredError', metrics: ['mse'] });
+      this.agent2.model.compile({ optimizer, loss: 'meanSquaredError', metrics: ['mse'] });
     }
   }
 
